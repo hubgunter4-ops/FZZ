@@ -1,0 +1,87 @@
+import yaml
+import requests
+import time
+
+def load_payloads(yaml_file):
+    """Lee y parsea el archivo YAML."""
+    try:
+        with open(yaml_file, 'r', encoding='utf-8') as file:
+            return yaml.safe_load(file)
+    except Exception as e:
+        print(f"[!] Error al leer el archivo YAML: {e}")
+        return None
+
+def fuzz_target(target_url, param_name, payloads_data, method="GET", is_json=False):
+    """
+    Envía los payloads al parámetro especificado en la URL.
+    Soporta GET, POST (Form Data) y POST (JSON).
+    """
+    print(f"[*] Iniciando Fuzzing en: {target_url}")
+    print(f"[*] Método HTTP: {method.upper()}")
+    if method.upper() == "POST":
+        print(f"[*] Formato: {'JSON (application/json)' if is_json else 'Form Data (x-www-form-urlencoded)'}")
+    print(f"[*] Parámetro objetivo: {param_name}\n")
+
+    vulnerabilidades = payloads_data.get('vulnerabilities', {})
+
+    for vuln_type, techniques in vulnerabilidades.items():
+        print(f"\n" + "="*50)
+        print(f"[*] PROBANDO CATEGORÍA: {vuln_type.upper()}")
+        print("="*50)
+        
+        for technique in techniques:
+            print(f"\n[+] Técnica: {technique.get('technique', 'Desconocida')}")
+            
+            for payload in technique.get('payloads', []):
+                try:
+                    start_time = time.time()
+                    
+                    if method.upper() == "GET":
+                        params = {param_name: payload}
+                        response = requests.get(target_url, params=params, timeout=10)
+                    
+                    elif method.upper() == "POST":
+                        payload_dict = {param_name: payload}
+                        
+                        if is_json:
+                            # Envía los datos como JSON
+                            response = requests.post(target_url, json=payload_dict, timeout=10)
+                        else:
+                            # Envía los datos como formulario tradicional
+                            response = requests.post(target_url, data=payload_dict, timeout=10)
+                    
+                    else:
+                        print(f"[!] Método HTTP no soportado: {method}")
+                        return
+
+                    elapsed_time = time.time() - start_time
+                    
+                    # Mostrar resultados básicos
+                    print(f"  -> Payload: {payload}")
+                    print(f"     Status: {response.status_code} | Longitud: {len(response.text)} bytes | Tiempo: {elapsed_time:.2f}s")
+                    
+                    # Lógica simple de detección
+                    if "49" in response.text and "7*7" in payload:
+                        print("     [!!!] POSIBLE VULNERABILIDAD SSTI DETECTADA")
+                    if "root:x:0:0:" in response.text:
+                        print("     [!!!] POSIBLE LECTURA DE ARCHIVOS / OS COMMAND DETECTADA")
+                    if elapsed_time > 4.5 and "SLEEP" in payload.upper():
+                        print("     [!!!] POSIBLE INYECCIÓN BASADA EN TIEMPO DETECTADA")
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"  -> [!] Error de conexión con payload '{payload}': {e}")
+                
+                time.sleep(0.5)
+
+if __name__ == "__main__":
+    YAML_FILE = "payloads_testing.yml"
+    data = load_payloads(YAML_FILE)
+    
+    if data:
+        # Ejemplo de prueba a una API REST usando POST con JSON
+        TARGET_URL_API = "http://localhost:3000/api/login"
+        TARGET_PARAM_API = "username"
+        
+        # Llamamos a la función indicando method="POST" y is_json=True
+        fuzz_target(TARGET_URL_API, TARGET_PARAM_API, data, method="POST", is_json=T
+rue )
