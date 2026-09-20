@@ -1,0 +1,91 @@
+import os
+
+import re
+
+ 
+
+# Reglas de detección (Patrones vulnerables)
+
+RULES = {
+
+    "SQL_INJECTION": {
+
+        "pattern": r"SELECT.FROM.\+.*req\.(query|body)",
+
+        "description": "Posible Inyección SQL detectada: Concatenación de strings en consulta SQL."
+
+    },
+
+    "XSS_REFLECTED": {
+
+        "pattern": r"res\.send\(.req\.(query|body).\)",
+
+        "description": "Posible XSS detectado: Envío directo de datos del usuario en la respuesta."
+
+    },
+
+    "XSS_TEMPLATE": {
+
+        "pattern": r"`.*\$\{.*req\.(query|body).*\}.*`",
+
+        "description": "Posible XSS detectado: Uso de Template Literals con datos del usuario sin sanitizar."
+
+    }
+
+}
+
+ 
+
+def scan_file(filepath):
+
+    with open(filepath, 'r', encoding='utf-8') as file:
+
+        lines = file.readlines()
+
+ 
+
+    for line_num, line in enumerate(lines, 1):
+
+        for rule_name, rule_data in RULES.items():
+
+            if re.search(rule_data["pattern"], line):
+
+                print(f"[!] ALERTA: {rule_name}")
+
+                print(f"    Archivo: {filepath} (Línea {line_num})")
+
+                print(f"    Detalle: {rule_data['description']}")
+
+                print(f"    Código : {line.strip()}\n")
+
+ 
+
+def run_sast(directory):
+
+    print(f"Iniciando escaneo SAST en el directorio: {directory}\n" + "="*50)
+
+    for root, _, files in os.walk(directory):
+
+        for file in files:
+
+            if file.endswith('.js'):
+
+                scan_file(os.path.join(root, file))
+
+    print("="*50 + "\nEscaneo finalizado.")
+
+ 
+
+if __name__ == "__main__":
+
+    # Escanear la carpeta de la aplicación vulnerable
+
+    target_dir = "../vulnerable_app"
+
+    if os.path.exists(target_dir):
+
+        run_sast(target_dir)
+
+    else:
+
+        print("Por favor, ejecuta el script desde la carpeta sast_scanner.")
