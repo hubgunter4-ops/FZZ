@@ -12,7 +12,32 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
-También puede instalarse como comando local con `pip install -e .`.
+Para automatizar esos pasos en Linux o macOS:
+
+```bash
+./scripts/install.sh
+```
+
+Para instalar también las dependencias de desarrollo y pruebas:
+
+```bash
+make install-dev
+make check
+```
+
+En Windows PowerShell puede usarse `scripts\install.ps1`; el instalador acepta `PYTHON_BIN`, `FZZ_VENV` y `FZZ_INSTALL_DEV=1` como variables opcionales. También puede instalarse como comando local con `pip install -e .`.
+
+### Ejecución con Docker
+
+La imagen contiene la CLI y sus dependencias runtime. Construye y ejecuta siempre con un target autorizado:
+
+```bash
+docker build -t fzz-security-tool .
+docker run --rm fzz-security-tool --help
+docker run --rm fzz-security-tool recon --url https://example.com
+```
+
+El `Dockerfile` no incluye la GUI Tkinter ni los payloads heredados; para la interfaz gráfica usa una instalación local y para un diccionario propio monta el archivo como volumen.
 
 ## CLI
 
