@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .fuzzer import FuzzConfig, fuzz_target
 from .payloads import default_payload_file, load_payloads
+from .recon import ReconConfig, recon_target
 from .sast import scan_directory
 
 DISCLAIMER = "Solo use FZZ contra sistemas propios o con autorización explícita. Los hallazgos son indicativos."
@@ -27,6 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
     fuzz.add_argument("--pause", type=float, default=0.5)
     fuzz.add_argument("--max-requests", type=int, default=500)
     fuzz.add_argument("--json-output", action="store_true")
+    recon = sub.add_parser("recon", help="Validar y perfilar un target HTTP con una sola solicitud GET")
+    recon.add_argument("--url", required=True)
+    recon.add_argument("--timeout", type=float, default=10.0)
+    recon.add_argument("--json-output", action="store_true")
     sast = sub.add_parser("sast", help="Escanear archivos JavaScript con reglas regex")
     sast.add_argument("directory")
     sast.add_argument("--json-output", action="store_true")
@@ -43,14 +48,26 @@ def main(argv: list[str] | None = None) -> int:
             from .gui import launch
             launch()
             return 0
+        if args.command == "recon":
+            profile = recon_target(ReconConfig(args.url, args.timeout))
+            if args.json_output:
+                print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+            else:
+                print(f"Target válido y accesible: {profile.final_url}")
+                print(f"Estado: {profile.status_code} | Tiempo: {profile.elapsed:.2f}s")
+                print(f"Título: {profile.title or 'n/d'} | Content-Type: {profile.content_type or 'n/d'}")
+                print(f"Server: {profile.server or 'n/d'} | X-Powered-By: {profile.powered_by or 'n/d'}")
+            return 0
         if args.command == "fuzz":
             payloads = load_payloads(args.payloads)
             config = FuzzConfig(args.url, args.parameter, args.method, args.body, args.timeout, args.pause, max_requests=args.max_requests)
-            results = fuzz_target(config, payloads)
+            profile = recon_target(ReconConfig(config.url, min(config.timeout, 30.0)))
+            results = fuzz_target(config, payloads, perform_recon=False)
             data = [result.to_dict() for result in results]
             if args.json_output:
-                print(json.dumps(data, ensure_ascii=False, indent=2))
+                print(json.dumps({"recon": profile.to_dict(), "results": data}, ensure_ascii=False, indent=2))
             else:
+                print(f"Reconocimiento: {profile.status_code} | {profile.final_url} | {profile.title or 'sin título'}")
                 for result in results:
                     status = result.status_code if result.status_code is not None else "ERROR"
                     print(f"{status:>5} {result.elapsed:>6.2f}s {result.category}/{result.technique}: {result.payload}")

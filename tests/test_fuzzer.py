@@ -9,15 +9,21 @@ PAYLOADS = """vulnerabilities:\n  ssti:\n    - technique: arithmetic\n      payl
 
 class FakeResponse:
     status_code = 200
-    def __init__(self, text):
+    url = "http://test.local/search"
+    encoding = "utf-8"
+    headers = {"Content-Type": "text/html"}
+    def __init__(self, text="<title>fixture</title>"):
         self.text = text
+        self.content = text.encode()
 
 
 class FakeSession:
     def __init__(self):
         self.calls = []
-    def get(self, url, *, params, timeout):
+    def get(self, url, *, params=None, timeout, **kwargs):
         self.calls.append(("GET", url, params, timeout))
+        if params is None:
+            return FakeResponse()
         return FakeResponse("49" if "7*7" in params["q"] else "root:x:0:0:")
 
 

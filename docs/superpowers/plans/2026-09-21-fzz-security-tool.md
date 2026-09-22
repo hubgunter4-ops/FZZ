@@ -57,7 +57,19 @@
 - [ ] Add installation, authorized-use, examples, and YAML schema documentation.
 - [ ] Commit as `feat: expose CLI and optional desktop interface`.
 
-### Task 4: Verification
+### Task 4: Target reconnaissance and pre-flight validation
+
+**Files:**
+- Create: `fzztool/recon.py`, `tests/test_recon.py`
+- Modify: `fzztool/fuzzer.py`, `fzztool/cli.py`, `README.md`, `tests/test_fuzzer.py`
+
+- [ ] Validate HTTP(S) scheme, hostname, port, timeout, response size, and reject embedded credentials.
+- [ ] Perform exactly one bounded GET request and report status, final URL, title, content type, and informative headers.
+- [ ] Run reconnaissance before fuzzing and stop before payloads when validation or connectivity fails.
+- [ ] Expose standalone `recon` and JSON output, then test with a controlled fake session.
+- [ ] Commit as `feat: add validated target reconnaissance before fuzzing`.
+
+### Task 5: Verification
 
 - [ ] Install dependencies in the environment if needed.
 - [ ] Run `pytest -q`, CLI help, a local HTTP fixture smoke test, and a local SAST fixture test.

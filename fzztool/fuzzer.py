@@ -9,6 +9,7 @@ import requests
 
 from .detectors import detect_indicators
 from .payloads import Payload
+from .recon import ReconConfig, ReconProfile, recon_target
 
 MAX_TIMEOUT = 120.0
 MAX_PAUSE = 60.0
@@ -59,9 +60,15 @@ class FuzzResult:
 
 
 def fuzz_target(config: FuzzConfig, payloads: Iterable[Payload], *, session: requests.Session | None = None,
-                on_result: Callable[[FuzzResult], None] | None = None) -> list[FuzzResult]:
+                on_result: Callable[[FuzzResult], None] | None = None,
+                on_recon: Callable[[ReconProfile], None] | None = None,
+                perform_recon: bool = True) -> list[FuzzResult]:
     config.validate()
     client = session or requests.Session()
+    if perform_recon:
+        profile = recon_target(ReconConfig(config.url, min(config.timeout, 30.0)), session=client)
+        if on_recon:
+            on_recon(profile)
     results: list[FuzzResult] = []
     threshold = config.timing_threshold if config.timing_threshold is not None else max(4.0, config.timeout * 0.75)
     for index, payload in enumerate(payloads):

@@ -18,8 +18,17 @@ También puede instalarse como comando local con `pip install -e .`.
 
 La entrada principal es `python -m fzztool`; el lanzador `./fzz` ofrece el mismo comportamiento.
 
+Antes de enviar payloads, `fuzz` ejecuta una fase de reconocimiento de **una sola solicitud GET** contra el target introducido. La herramienta valida el esquema HTTP(S), hostname, puerto y ausencia de credenciales embebidas; después registra estado, URL final, título, tipo de contenido y cabeceras informativas. Si el target no es válido o no puede contactarse, el fuzzing no comienza. Esta fase no hace crawling ni inyecta payloads.
+
+También puede ejecutarse de forma independiente:
+
 ```bash
-# Fuzzing GET
+./fzz recon --url https://localhost:3000/health
+./fzz recon --url https://localhost:3000/health --json-output
+```
+
+```bash
+# Fuzzing GET (incluye reconocimiento previo)
 ./fzz fuzz --url http://localhost:3000/search --param q \
   --payloads ./Diccionario\ de\ Cargas\ Útiles\ para\ Pruebas\ de\ Seguridad\" \
   --timeout 10 --pause 0.5
@@ -30,7 +39,7 @@ La entrada principal es `python -m fzztool`; el lanzador `./fzz` ofrece el mismo
 # POST con JSON
 ./fzz fuzz --url http://localhost:3000/api/login --param username --method POST --body json
 
-# Resultados de fuzzing en JSON
+# Resultados de reconocimiento y fuzzing en JSON
 ./fzz fuzz --url http://localhost:3000/search --param q --json-output
 
 # SAST recursivo de JavaScript
@@ -40,7 +49,7 @@ La entrada principal es `python -m fzztool`; el lanzador `./fzz` ofrece el mismo
 
 El comando `sast` recorre únicamente archivos `.js` y reporta **regla, archivo, línea, detalle y código coincidente**. Las reglas actuales cubren patrones indicativos de SQL construido con entrada HTTP, XSS reflejado o interpolado, APIs de procesos y `eval`.
 
-Los códigos de salida son `0` cuando no se detectan indicadores, `1` cuando existen hallazgos indicativos, `2` para errores de configuración/uso y `3` para errores del sistema.
+Los códigos de salida son `0` cuando no se detectan indicadores o el reconocimiento es correcto, `1` cuando existen hallazgos indicativos, `2` para errores de configuración/validación del target y `3` para errores del sistema.
 
 ## Interfaz gráfica
 
