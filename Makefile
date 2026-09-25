@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV ?= .venv
 VENV_PYTHON = $(VENV)/bin/python
 
-.PHONY: install install-dev test check help clean
+.PHONY: install install-dev test check package help clean
 
 install:
 	PYTHON_BIN=$(PYTHON) FZZ_VENV=$(VENV) ./scripts/install.sh
@@ -18,11 +18,15 @@ check:
 	$(VENV_PYTHON) -m pytest -q
 	$(VENV_PYTHON) -m fzztool --help
 
+package:
+	./scripts/build.sh
+
 help:
 	@printf '%s\n' 'make install      Instala dependencias runtime y FZZ en .venv' \
 	              'make install-dev  Instala runtime, pytest y herramientas de desarrollo' \
 	              'make test         Ejecuta las pruebas' \
-	              'make check        Compila, prueba y verifica la ayuda CLI'
+	              'make check        Compila, prueba y verifica la ayuda CLI' \
+	              'make package      Construye dist/fzz con PyInstaller'
 
 clean:
 	rm -rf build dist *.egg-info .pytest_cache

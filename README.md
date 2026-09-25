@@ -96,6 +96,30 @@ La interfaz permite editar URL, parámetro, método, formato POST, archivo YAML,
 
 El botón principal puede activarse con `Ctrl+Enter`; `Escape` informa del estado de una ejecución en curso. La consola diferencia visualmente reconocimiento, hallazgos y errores, y el reconocimiento siempre aparece antes de cualquier payload.
 
+## Ejecutable independiente con PyInstaller
+
+El proyecto incluye una especificación de PyInstaller que empaqueta la CLI y la GUI en un único ejecutable. El build debe ejecutarse en el mismo sistema operativo de destino: PyInstaller no es un compilador cruzado. En Linux/macOS:
+
+```bash
+make install-dev
+make package
+./dist/fzz --help
+./dist/fzz gui
+```
+
+En Windows PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+.\scripts\build.ps1
+.\dist\fzz.exe --help
+.\dist\fzz.exe gui
+```
+
+El recurso `resources/payloads.yml` se incluye dentro del bundle para que el ejecutable tenga payloads predeterminados. También se puede pasar un YAML externo con `--payloads`. La salida queda en `dist/fzz` en Linux/macOS y `dist\fzz.exe` en Windows; `build/` y `dist/` están excluidos de Git.
+
 ## Formato YAML
 
 El documento debe contener una clave `vulnerabilities` con categorías, técnicas y listas de payloads:

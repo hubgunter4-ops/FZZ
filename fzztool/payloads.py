@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 from typing import Any
 
 import yaml
@@ -59,6 +60,10 @@ def payload_count(path: str | Path) -> int:
 
 
 def default_payload_file() -> Path:
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    bundled = bundle_root / "resources" / "payloads.yml"
+    if bundled.is_file():
+        return bundled
     return Path(__file__).resolve().parent.parent / "Diccionario de Cargas Útiles para Pruebas de Seguridad\""
 
 
