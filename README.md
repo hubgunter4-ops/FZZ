@@ -78,13 +78,23 @@ Los códigos de salida son `0` cuando no se detectan indicadores o el reconocimi
 
 ## Interfaz gráfica
 
-Si Python fue instalado con Tkinter, ejecuta:
+La interfaz Tkinter usa un panel de control de alto contraste inspirado en el patrón **Utility/Tool Control Panel**: navegación lateral, tarjetas de estado, configuración agrupada y consola de resultados. Sigue una cuadrícula de espaciado de 8 puntos, utiliza controles nativos enfocados por teclado y mantiene visibles los estados `READY`, `RUNNING`, `RECON VALIDATED`, `COMPLETE` y `BLOCKED`.
+
+Requiere el módulo de escritorio Tkinter. En Ubuntu/Debian:
+
+```bash
+sudo apt-get install python3-tk
+```
+
+En Windows y macOS, usa una distribución de Python que incluya Tkinter. Después ejecuta:
 
 ```bash
 ./fzz gui
 ```
 
 La interfaz permite editar URL, parámetro, método, formato POST, archivo YAML, timeout y pausa. Usa exactamente los mismos servicios que la CLI.
+
+El botón principal puede activarse con `Ctrl+Enter`; `Escape` informa del estado de una ejecución en curso. La consola diferencia visualmente reconocimiento, hallazgos y errores, y el reconocimiento siempre aparece antes de cualquier payload.
 
 ## Formato YAML
 
