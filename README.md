@@ -1,147 +1,270 @@
-# FZZ — HTTP Fuzzer y SAST para pruebas autorizadas
+# FZZ — fuzzing HTTP y SAST para pruebas autorizadas
 
-FZZ es una herramienta educativa para **pruebas de seguridad autorizadas**. Combina fuzzing HTTP configurable con un escáner SAST ligero para archivos JavaScript. No intenta demostrar una explotación ni sustituye una revisión manual. Úsala únicamente contra sistemas propios o con autorización explícita y dentro del alcance acordado.
+FZZ es una herramienta educativa para ejecutar pruebas de seguridad controladas sobre aplicaciones HTTP y código JavaScript. Incluye un motor de fuzzing HTTP, una fase de reconocimiento previa, descubrimiento opcional de parámetros y un escáner SAST basado en reglas.
 
-## Instalación
+> **Uso autorizado únicamente.** Ejecuta FZZ solo contra sistemas propios o contra targets cuyo propietario haya autorizado explícitamente la prueba. Define el alcance, el horario, el volumen máximo de solicitudes y el contacto operativo antes de iniciar cualquier ejecución.
 
-Requiere Python 3.11 o posterior. En un entorno virtual:
+FZZ genera **indicadores**, no pruebas concluyentes de explotación. Todo hallazgo requiere revisión manual y validación dentro del alcance aprobado.
+
+## Funcionalidades principales
+
+- **Reconocimiento HTTP acotado:** valida el target y realiza una única solicitud GET antes del fuzzing.
+- **Perfil del target:** registra estado HTTP, URL final, título, tipo de contenido, tamaño, servidor, tecnología declarada y métodos permitidos.
+- **Parámetros automáticos:** extrae nombres de la query string y de campos HTML `input`, `textarea` y `select` sin hacer crawling ni enviar formularios.
+- **Fuzzing GET y POST:** admite formularios y JSON, con timeout, pausa y límite de solicitudes configurables.
+- **Carga YAML validada:** normaliza categorías, técnicas y payloads con `yaml.safe_load` y límites de tamaño.
+- **Detección conservadora:** identifica indicadores reflejados o relacionados con las reglas disponibles, pero no afirma explotación.
+- **SAST JavaScript:** recorre archivos `.js` y reports reglas, archivo, línea, detalle y código coincidente.
+- **Interfaz Tkinter:** ofrece un panel visual de alto contraste con reconocimiento, configuración y consola de resultados.
+- **Distribución independiente:** PyInstaller empaqueta CLI y GUI en un ejecutable único.
+- **CI multiplataforma:** GitHub Actions construye bundles para Linux, Windows y macOS.
+
+## Requisitos
+
+Para ejecutar desde el código fuente se necesita:
+
+- Python 3.11 o posterior.
+- `pip` y `venv`.
+- Acceso de red al target autorizado cuando se use `recon` o `fuzz`.
+- Tkinter únicamente para la interfaz gráfica.
+
+En Ubuntu o Debian, instala Tkinter con:
 
 ```bash
+sudo apt-get update
+sudo apt-get install -y python3-tk
+```
+
+Para construir ejecutables Linux con PyInstaller también se necesita `binutils`, que normalmente puede instalarse con:
+
+```bash
+sudo apt-get install -y binutils
+```
+
+Windows y macOS deben usar una distribución de Python que incluya Tkinter si se desea ejecutar la GUI.
+
+## Instalación desde el repositorio
+
+### Linux y macOS: instalación automática
+
+El instalador crea un entorno virtual aislado, instala las dependencias runtime y registra FZZ en modo editable:
+
+```bash
+git clone https://github.com/hubgunter4-ops/FZZ.git
+cd FZZ
+./scripts/install.sh
+. .venv/bin/activate
+fzz --help
+```
+
+El instalador acepta estas variables opcionales:
+
+```bash
+PYTHON_BIN=python3.12 FZZ_VENV=.fzz-venv ./scripts/install.sh
+```
+
+Para incluir pruebas y herramientas de construcción:
+
+```bash
+FZZ_INSTALL_DEV=1 ./scripts/install.sh
+```
+
+### Instalación manual
+
+```bash
+git clone https://github.com/hubgunter4-ops/FZZ.git
+cd FZZ
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-Para automatizar esos pasos en Linux o macOS:
+La instalación editable permite ejecutar `fzz` desde cualquier directorio mientras se trabaja sobre el código fuente.
 
-```bash
-./scripts/install.sh
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/hubgunter4-ops/FZZ.git
+Set-Location FZZ
+.\scripts\install.ps1
+.\.venv\Scripts\Activate.ps1
+fzz --help
 ```
 
-Para instalar también las dependencias de desarrollo y pruebas:
+Para instalar dependencias de desarrollo:
+
+```powershell
+$env:FZZ_INSTALL_DEV = "1"
+.\scripts\install.ps1
+```
+
+### Instalación para desarrollo con Make
 
 ```bash
 make install-dev
 make check
 ```
 
-En Windows PowerShell puede usarse `scripts\install.ps1`; el instalador acepta `PYTHON_BIN`, `FZZ_VENV` y `FZZ_INSTALL_DEV=1` como variables opcionales. También puede instalarse como comando local con `pip install -e .`.
+Los comandos disponibles son:
 
-### Ejecución con Docker
+| Comando | Función |
+|---|---|
+| `make install` | Instala dependencias runtime en `.venv`. |
+| `make install-dev` | Instala runtime, pruebas y PyInstaller. |
+| `make test` | Ejecuta la suite de pruebas. |
+| `make check` | Compila módulos, ejecuta pruebas y verifica la ayuda CLI. |
+| `make package` | Genera el ejecutable con PyInstaller. |
+| `make clean` | Elimina artefactos locales de build y pruebas. |
 
-La imagen contiene la CLI y sus dependencias runtime. Construye y ejecuta siempre con un target autorizado:
+## Inicio rápido
+
+La CLI puede ejecutarse de tres formas equivalentes:
 
 ```bash
-docker build -t fzz-security-tool .
-docker run --rm fzz-security-tool --help
-docker run --rm fzz-security-tool recon --url https://example.com
+./fzz --help
+python -m fzztool --help
+fzz --help
 ```
 
-El `Dockerfile` no incluye la GUI Tkinter ni los payloads heredados; para la interfaz gráfica usa una instalación local y para un diccionario propio monta el archivo como volumen.
-
-## CLI
-
-La entrada principal es `python -m fzztool`; el lanzador `./fzz` ofrece el mismo comportamiento.
-
-Antes de enviar payloads, `fuzz` ejecuta una fase de reconocimiento de **una sola solicitud GET** contra el target introducido. La herramienta valida el esquema HTTP(S), hostname, puerto y ausencia de credenciales embebidas; después registra estado, URL final, título, tipo de contenido y cabeceras informativas. Si el target no es válido o no puede contactarse, el fuzzing no comienza. Esta fase no hace crawling ni inyecta payloads.
-
-También puede ejecutarse de forma independiente:
+Reconocimiento independiente:
 
 ```bash
-./fzz recon --url https://localhost:3000/health
-./fzz recon --url https://localhost:3000/health --json-output
+./fzz recon --url https://app.example.test/search
 ```
 
+Reconocimiento en JSON:
+
 ```bash
-# Fuzzing GET (incluye reconocimiento previo)
-./fzz fuzz --url http://localhost:3000/search --param q \
-  --payloads ./Diccionario\ de\ Cargas\ Útiles\ para\ Pruebas\ de\ Seguridad" \
-  --timeout 10 --pause 0.5
+./fzz recon \
+  --url https://app.example.test/search \
+  --json-output
+```
 
-# Detectar parámetros desde query string y formularios HTML del recon
-./fzz fuzz --url http://localhost:3000/search --auto-params \
-  --payloads ./resources/payloads.yml --max-requests 50
+Fuzzing de un parámetro específico:
 
-# POST con formulario
-./fzz fuzz --url http://localhost:3000/login --param username --method POST --body form
+```bash
+./fzz fuzz \
+  --url https://app.example.test/search \
+  --param q \
+  --payloads ./resources/payloads.yml \
+  --timeout 10 \
+  --pause 0.5 \
+  --max-requests 50
+```
 
-# POST con JSON
-./fzz fuzz --url http://localhost:3000/api/login --param username --method POST --body json
+Escaneo SAST:
 
-# Resultados de reconocimiento y fuzzing en JSON
-./fzz fuzz --url http://localhost:3000/search --param q --json-output
-
-# SAST recursivo de JavaScript
+```bash
 ./fzz sast ./mi-aplicacion
 ./fzz sast ./mi-aplicacion --json-output
 ```
 
-El comando `sast` recorre únicamente archivos `.js` y reporta **regla, archivo, línea, detalle y código coincidente**. Las reglas actuales cubren patrones indicativos de SQL construido con entrada HTTP, XSS reflejado o interpolado, APIs de procesos y `eval`.
+## Flujo de reconocimiento y fuzzing
 
-Los códigos de salida son `0` cuando no se detectan indicadores o el reconocimiento es correcto, `1` cuando existen hallazgos indicativos, `2` para errores de configuración/validación del target y `3` para errores del sistema.
+El comando `fuzz` valida primero la configuración y el target. Después ejecuta una sola solicitud GET con redirecciones habilitadas. Si esa fase falla, no se envían payloads.
 
-## Interfaz gráfica
+El perfil obtenido contiene:
 
-La interfaz Tkinter usa un panel de control de alto contraste inspirado en el patrón **Utility/Tool Control Panel**: navegación lateral, tarjetas de estado, configuración agrupada y consola de resultados. Sigue una cuadrícula de espaciado de 8 puntos, utiliza controles nativos enfocados por teclado y mantiene visibles los estados `READY`, `RUNNING`, `RECON VALIDATED`, `COMPLETE` y `BLOCKED`.
+- URL solicitada y URL final después de redirecciones.
+- Estado HTTP y tiempo transcurrido.
+- Título HTML, tipo de contenido y longitud declarada.
+- Cabeceras `Server`, `X-Powered-By` y `Allow`, cuando existen.
+- Parámetros candidatos detectados durante el análisis del contenido.
 
-Requiere el módulo de escritorio Tkinter. En Ubuntu/Debian:
+El recon no sigue enlaces, no realiza crawling, no envía formularios y no ejecuta payloads. El cuerpo analizado está limitado a 512 KB.
+
+## Parámetros automáticos
+
+El modo automático se activa explícitamente con `--auto-params`:
 
 ```bash
-sudo apt-get install python3-tk
+./fzz fuzz \
+  --url http://localhost:3000/search \
+  --auto-params \
+  --payloads ./resources/payloads.yml \
+  --max-requests 50
 ```
 
-En Windows y macOS, usa una distribución de Python que incluya Tkinter. Después ejecuta:
+FZZ combina los nombres presentes en la query string con los atributos `name` de los elementos HTML `input`, `textarea` y `select`. El resultado se deduplica y se limita a 32 candidatos. Después distribuye las solicitudes entre esos parámetros hasta alcanzar `--max-requests`.
+
+`--param NOMBRE` y `--auto-params` son opciones mutuamente excluyentes. Si no se encuentra ningún candidato, FZZ detiene la ejecución en lugar de adivinar nombres o iniciar crawling.
+
+Cada resultado conserva el parámetro usado, tanto en la salida normal como en JSON:
+
+```text
+[200] 0.31s [query] xss/Reflejado Básico: <svg/onload=alert(1)>
+```
+
+## Fuzzing HTTP
+
+### GET
+
+```bash
+./fzz fuzz \
+  --url http://localhost:3000/search \
+  --param q \
+  --method GET
+```
+
+El payload se añade como parámetro de query mediante la biblioteca `requests`.
+
+### POST con formulario
+
+```bash
+./fzz fuzz \
+  --url http://localhost:3000/login \
+  --param username \
+  --method POST \
+  --body form
+```
+
+### POST con JSON
+
+```bash
+./fzz fuzz \
+  --url http://localhost:3000/api/search \
+  --param query \
+  --method POST \
+  --body json
+```
+
+Parámetros de control:
+
+| Opción | Predeterminado | Límite | Descripción |
+|---|---:|---:|---|
+| `--timeout` | `10` | `120` segundos | Tiempo máximo por solicitud de fuzzing. |
+| `--pause` | `0.5` | `60` segundos | Espera entre solicitudes. |
+| `--max-requests` | `500` | `500` | Límite total por ejecución. |
+| `--payloads` | `resources/payloads.yml` | `1 MB` | Diccionario YAML utilizado. |
+
+## Interfaz gráfica Tkinter
+
+Inicia el panel con:
 
 ```bash
 ./fzz gui
 ```
 
-La interfaz permite editar URL, parámetro, método, formato POST, archivo YAML, timeout y pausa. Usa exactamente los mismos servicios que la CLI.
+La interfaz usa un diseño de control para herramientas técnicas. Incluye navegación lateral, tarjetas de estado, formulario de configuración y consola de resultados. El estado del flujo se muestra mediante `READY`, `RUNNING`, `RECON VALIDATED`, `COMPLETE` y `BLOCKED`.
 
-El botón principal puede activarse con `Ctrl+Enter`; `Escape` informa del estado de una ejecución en curso. La consola diferencia visualmente reconocimiento, hallazgos y errores, y el reconocimiento siempre aparece antes de cualquier payload.
+El panel permite configurar URL, parámetro, detección automática, archivo YAML, método, formato POST, timeout y pausa. La opción **Detectar parámetros automáticamente desde recon** activa el mismo comportamiento de `--auto-params`.
 
-## Ejecutable independiente con PyInstaller
+Atajos disponibles:
 
-El proyecto incluye una especificación de PyInstaller que empaqueta la CLI y la GUI en un único ejecutable. El build debe ejecutarse en el mismo sistema operativo de destino: PyInstaller no es un compilador cruzado. En Linux/macOS:
+- `Ctrl+Enter`: inicia una ejecución.
+- `Escape`: informa que existe una ejecución en curso.
 
-```bash
-make install-dev
-make package
-./dist/fzz --help
-./dist/fzz gui
-```
+La consola diferencia reconocimiento, resultados con indicadores y errores. El reconocimiento aparece siempre antes de los resultados de payloads.
 
-En Windows PowerShell:
+## Formato del diccionario YAML
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
-.\scripts\build.ps1
-.\dist\fzz.exe --help
-.\dist\fzz.exe gui
-```
-
-El recurso `resources/payloads.yml` se incluye dentro del bundle para que el ejecutable tenga payloads predeterminados. También se puede pasar un YAML externo con `--payloads`. La salida queda en `dist/fzz` en Linux/macOS y `dist\fzz.exe` en Windows; `build/` y `dist/` están excluidos de Git.
-
-## Compilación automática con GitHub Actions
-
-El workflow [`build.yml`](.github/workflows/build.yml) ejecuta el control de calidad y construye el bundle en runners nativos para Linux x86_64, Windows x86_64 y macOS x86_64. Se activa en pull requests, pushes a `main`, tags `v*` y ejecuciones manuales desde la pestaña **Actions**.
-
-Cada build publica un artefacto descargable con retención de 14 días. Para crear una release distribuible, crea y publica un tag semántico:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-El job de release descarga los tres ejecutables, genera `SHA256SUMS.txt` y los adjunta a una GitHub Release con notas automáticas. Los permisos del workflow están limitados a lectura por defecto; solo el job de release recibe permiso de escritura sobre contenidos.
-
-## Formato YAML
-
-El documento debe contener una clave `vulnerabilities` con categorías, técnicas y listas de payloads:
+El documento debe contener `vulnerabilities`, un mapa de categorías. Cada categoría contiene una lista de técnicas y cada técnica contiene una lista de payloads:
 
 ```yaml
+version: "2.0"
+description: "Payloads de prueba autorizada"
 vulnerabilities:
   ssti:
     - technique: "Expresiones aritméticas"
@@ -153,20 +276,155 @@ vulnerabilities:
         - "<test>"
 ```
 
-La herramienta carga este documento con `yaml.safe_load`, valida su estructura y limita el archivo a 1 MB. El fuzzing limita el timeout a 120 segundos, la pausa a 60 segundos y cada ejecución a 500 solicitudes como protección contra saturación accidental.
+FZZ valida el documento con `yaml.safe_load`. Los valores de payload pueden ser texto, enteros o números decimales; se normalizan a texto antes de enviarse. Un documento vacío, mal formado o superior a 1 MB se rechaza.
 
-Cuando se usa `--auto-params`, el recon inspecciona únicamente la URL final y hasta 512 KB del HTML recibido. Extrae nombres de parámetros de la query string y de atributos `name` en `input`, `textarea` y `select`; no sigue enlaces ni envía formularios. Los candidatos se limitan a 32 nombres y el total de solicitudes sigue limitado por `--max-requests`. La GUI ofrece la misma función mediante **Detectar parámetros automáticamente desde recon**.
+El recurso `resources/payloads.yml` se incluye en el repositorio y también se embebe en el ejecutable PyInstaller.
 
-## Compatibilidad con el repositorio original
+## SAST JavaScript
 
-Los archivos sin extensión `fuzz`, `parser`, `pay` y `rules` se conservan como prototipos históricos. La implementación mantenible está en `fzztool/`; evita duplicar lógica en los prototipos. El diccionario de cargas heredado se acepta como entrada predeterminada.
+El comando `sast` recorre recursivamente archivos con extensión `.js`. Las reglas actuales buscan patrones indicativos de:
 
-## Desarrollo y pruebas
+- Construcción de SQL con entrada HTTP.
+- XSS reflejado o interpolado.
+- Uso de `eval`.
+- APIs de procesos o ejecución de comandos.
+
+Ejemplo de salida JSON:
 
 ```bash
-python -m pytest -q
-python -m compileall -q fzztool
-./fzz --help
+./fzz sast ./src --json-output > findings.json
 ```
 
-Los hallazgos de fuzzing son indicadores conservadores: una respuesta que contiene un marcador no confirma por sí sola una vulnerabilidad. Revisa las respuestas, reproduce de forma controlada y documenta siempre el alcance autorizado.
+Los resultados incluyen regla, archivo, línea, detalle y código coincidente. El escáner es deliberadamente ligero y basado en expresiones regulares; debe complementarse con revisión manual y herramientas SAST especializadas cuando el riesgo lo requiera.
+
+## Códigos de salida
+
+| Código | Significado |
+|---:|---|
+| `0` | Ejecución correcta sin indicadores o reconocimiento correcto. |
+| `1` | Se detectaron indicadores de seguridad o hallazgos SAST. |
+| `2` | Error de configuración, validación o target. |
+| `3` | Error del sistema operativo o de ejecución. |
+
+## Ejecutable independiente con PyInstaller
+
+FZZ se empaqueta como un único ejecutable que contiene CLI, GUI, dependencias Python y el diccionario de payloads. PyInstaller debe ejecutarse en el mismo sistema operativo y arquitectura del destino; no realiza compilación cruzada.
+
+### Linux y macOS
+
+```bash
+make install-dev
+make package
+./dist/fzz --version
+./dist/fzz --help
+./dist/fzz gui
+```
+
+El script [`scripts/build.sh`](scripts/build.sh) instala o actualiza PyInstaller, limpia `build/` y `dist/`, ejecuta `fzz.spec` y deja el resultado en `dist/fzz`.
+
+### Windows
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+.\scripts\build.ps1
+.\dist\fzz.exe --version
+.\dist\fzz.exe gui
+```
+
+El script [`scripts/build.ps1`](scripts/build.ps1) genera `dist\fzz.exe`. Los directorios `build/` y `dist/` están excluidos de Git.
+
+## Docker
+
+La imagen Docker contiene la CLI y sus dependencias runtime:
+
+```bash
+docker build -t fzz-security-tool .
+docker run --rm fzz-security-tool --help
+docker run --rm fzz-security-tool recon --url https://app.example.test
+```
+
+El Dockerfile está pensado para uso de CLI. La GUI Tkinter debe ejecutarse desde una instalación local con acceso a un servidor gráfico.
+
+## GitHub Actions
+
+El workflow [`build.yml`](.github/workflows/build.yml) ejecuta calidad y builds nativos para:
+
+- Linux x86_64: `fzz-linux-x86_64`.
+- Windows x86_64: `fzz-windows-x86_64.exe`.
+- macOS x86_64: `fzz-macos-x86_64`.
+
+Se activa en pull requests, pushes a `main`, tags `v*` y ejecuciones manuales. El job de calidad compila módulos y ejecuta la suite antes de iniciar la matriz de builds. Cada plataforma publica un artifact con retención de 14 días.
+
+Para crear una release distribuible:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+El job de release descarga los tres ejecutables, genera `SHA256SUMS.txt` y crea una GitHub Release con notas automáticas. El workflow usa permisos de lectura por defecto y concede escritura únicamente al job que publica la release.
+
+## Arquitectura del proyecto
+
+```text
+fzztool/
+├── cli.py          # comandos fuzz, recon, sast y gui
+├── detectors.py    # indicadores conservadores de respuestas
+├── fuzzer.py       # motor HTTP y límites de solicitudes
+├── gui.py          # panel Tkinter
+├── payloads.py     # carga, validación y normalización YAML
+├── recon.py        # validación, perfilado y candidatos de parámetros
+└── sast.py         # escáner SAST JavaScript
+
+resources/payloads.yml       # diccionario distribuible
+packaging/fzz_entry.py       # entrada PyInstaller
+fzz.spec                     # configuración del bundle
+scripts/install.*             # instaladores locales
+scripts/build.*               # builds PyInstaller
+.github/workflows/build.yml   # CI y releases multiplataforma
+tests/                        # pruebas unitarias
+```
+
+Los archivos heredados sin extensión —`fuzz`, `parser`, `pay` y `rules`— se conservan como prototipos históricos. La implementación mantenible está en `fzztool/`.
+
+## Desarrollo y verificación
+
+Después de modificar el proyecto, ejecuta:
+
+```bash
+make check
+python -m compileall -q fzztool packaging
+```
+
+Para probar la interfaz en un entorno Linux con display virtual:
+
+```bash
+xvfb-run -a python -c 'import tkinter as tk; from fzztool.gui import FZZApp; root=tk.Tk(); FZZApp(root); root.destroy()'
+```
+
+Antes de distribuir un bundle, verifica al menos:
+
+```bash
+./dist/fzz --version
+./dist/fzz --help
+```
+
+## Limitaciones y uso responsable
+
+FZZ no realiza crawling, no autentica usuarios, no intenta evadir controles de acceso y no verifica de forma concluyente la explotación de una vulnerabilidad. El modo automático solo reutiliza nombres observados en la respuesta inicial; no inventa parámetros ni descubre rutas adicionales.
+
+Una respuesta que contiene un marcador puede ser un falso positivo. Revisa el contexto de reflexión, repite la prueba con una carga inocua y conserva evidencia únicamente dentro de las políticas aprobadas. Ajusta `--pause` y `--max-requests` para no degradar el servicio probado.
+
+## Referencias
+
+[1]: https://docs.python.org/3/library/venv.html "Python venv documentation"
+
+[2]: https://pyinstaller.org/en/stable/ "PyInstaller documentation"
+
+[3]: https://docs.github.com/en/actions "GitHub Actions documentation"
+
+[4]: https://docs.python-requests.org/en/latest/ "Requests documentation"
+
+[5]: https://pyyaml.org/wiki/PyYAMLDocumentation "PyYAML documentation"
