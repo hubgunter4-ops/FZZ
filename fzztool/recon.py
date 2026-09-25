@@ -6,13 +6,18 @@ from html import unescape
 import re
 import time
 from typing import Any
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qsl, urlparse, urlunparse
 
 import requests
 
 MAX_RECON_TIMEOUT = 30.0
 MAX_RESPONSE_BYTES = 512_000
+MAX_PARAMETER_CANDIDATES = 32
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+_FIELD_NAME_RE = re.compile(
+    r"<(?:input|textarea|select)\b[^>]*\bname\s*=\s*(?:\"([^\"]+)\"|'([^']+)'|([^\s>]+))",
+    re.IGNORECASE,
+)
 
 
 class ReconError(ValueError):
@@ -59,6 +64,7 @@ class ReconProfile:
     server: str | None
     powered_by: str | None
     allowed_methods: str | None
+    parameters: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,8 +77,27 @@ def _title(body: str) -> str | None:
     return " ".join(unescape(match.group(1)).split())[:200] or None
 
 
+def _parameter_candidates(url: str, body: str) -> list[str]:
+    """Return bounded, de-duplicated parameter names without submitting forms."""
+    names: list[str] = []
+    parsed = urlparse(url)
+    names.extend(name for name, _ in parse_qsl(parsed.query, keep_blank_values=True))
+    for match in _FIELD_NAME_RE.finditer(body):
+        names.append(next((group for group in match.groups() if group), ""))
+    result: list[str] = []
+    for name in names:
+        candidate = unescape(name).strip()
+        if not candidate or len(candidate) > 80 or any(char.isspace() for char in candidate):
+            continue
+        if candidate not in result:
+            result.append(candidate)
+        if len(result) >= MAX_PARAMETER_CANDIDATES:
+            break
+    return result
+
+
 def recon_target(config: ReconConfig, *, session: requests.Session | None = None) -> ReconProfile:
-    """Validate and make one bounded GET request; no crawling or payload injection occurs."""
+    """Validate and make one bounded GET request; no crawling or form submission occurs."""
     normalized_url = config.validate()
     client = session or requests.Session()
     started = time.monotonic()
@@ -99,6 +124,7 @@ def recon_target(config: ReconConfig, *, session: requests.Session | None = None
         server=response.headers.get("Server"),
         powered_by=response.headers.get("X-Powered-By"),
         allowed_methods=response.headers.get("Allow"),
+        parameters=_parameter_candidates(str(response.url), body),
     )
 
 

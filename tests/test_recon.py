@@ -5,7 +5,7 @@ class FakeResponse:
     status_code = 200
     url = "https://example.test/home"
     encoding = "utf-8"
-    content = b"<html><title> Demo App </title><body>ok</body></html>"
+    content = b'<html><title> Demo App </title><body><form><input name="query"><select name="category"></select></form></body></html>'
     headers = {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Length": "54",
@@ -30,6 +30,7 @@ def test_recon_validates_target_and_returns_profile():
     assert profile.status_code == 200
     assert profile.requested_url == "https://example.test/path"
     assert profile.title == "Demo App"
+    assert profile.parameters == ["query", "category"]
     assert profile.server == "demo-server"
     assert session.calls[0][1]["allow_redirects"] is True
 

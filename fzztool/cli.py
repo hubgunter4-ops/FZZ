@@ -20,7 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     fuzz = sub.add_parser("fuzz", help="Enviar payloads YAML a un parámetro HTTP")
     fuzz.add_argument("--url", required=True)
-    fuzz.add_argument("--param", required=True, dest="parameter")
+    fuzz.add_argument("--param", dest="parameter", help="Parámetro a probar; incompatible con --auto-params")
+    fuzz.add_argument("--auto-params", action="store_true", help="Detectar parámetros de query/formulario durante recon y probarlos")
     fuzz.add_argument("--payloads", default=str(default_payload_file()))
     fuzz.add_argument("--method", choices=["GET", "POST"], default="GET")
     fuzz.add_argument("--body", choices=["form", "json"], default="form", help="Formato para POST")
@@ -57,20 +58,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Estado: {profile.status_code} | Tiempo: {profile.elapsed:.2f}s")
                 print(f"Título: {profile.title or 'n/d'} | Content-Type: {profile.content_type or 'n/d'}")
                 print(f"Server: {profile.server or 'n/d'} | X-Powered-By: {profile.powered_by or 'n/d'}")
+                print(f"Parámetros candidatos: {', '.join(profile.parameters) if profile.parameters else 'ninguno'}")
             return 0
         if args.command == "fuzz":
             payloads = load_payloads(args.payloads)
-            config = FuzzConfig(args.url, args.parameter, args.method, args.body, args.timeout, args.pause, max_requests=args.max_requests)
+            if args.auto_params and args.parameter:
+                parser.error("--param y --auto-params no pueden usarse juntos")
+            parameter = "auto" if args.auto_params else args.parameter
+            if not parameter:
+                parser.error("fuzz requiere --param NOMBRE o --auto-params")
+            config = FuzzConfig(args.url, parameter, args.method, args.body, args.timeout, args.pause, max_requests=args.max_requests)
             profile = recon_target(ReconConfig(config.url, min(config.timeout, 30.0)))
-            results = fuzz_target(config, payloads, perform_recon=False)
+            results = fuzz_target(config, payloads, perform_recon=False, recon_profile=profile)
             data = [result.to_dict() for result in results]
             if args.json_output:
                 print(json.dumps({"recon": profile.to_dict(), "results": data}, ensure_ascii=False, indent=2))
             else:
                 print(f"Reconocimiento: {profile.status_code} | {profile.final_url} | {profile.title or 'sin título'}")
+                print(f"Parámetros candidatos: {', '.join(profile.parameters) if profile.parameters else 'ninguno'}")
                 for result in results:
                     status = result.status_code if result.status_code is not None else "ERROR"
-                    print(f"{status:>5} {result.elapsed:>6.2f}s {result.category}/{result.technique}: {result.payload}")
+                    print(f"{status:>5} {result.elapsed:>6.2f}s [{result.parameter}] {result.category}/{result.technique}: {result.payload}")
                     for indicator in result.indicators:
                         print(f"      [!] {indicator}")
                     if result.error:

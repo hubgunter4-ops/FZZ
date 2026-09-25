@@ -151,15 +151,17 @@ class FZZApp:
             if key == "payloads":
                 ttk.Button(holder, text="Browse", style="Secondary.TButton", command=self._browse_payloads).grid(row=0, column=1, padx=(6, 0))
             entry.bind("<FocusIn>", lambda event, h=hint: self._set_status(f"Campo activo · {h}"))
-        ttk.Label(panel, text="METHOD", style="Field.TLabel").grid(row=12, column=0, sticky="w", pady=(8, 5))
+        self.auto_params = tk.BooleanVar(value=False)
+        ttk.Checkbutton(panel, text="Detectar parámetros automáticamente desde recon", variable=self.auto_params).grid(row=12, column=0, sticky="w", pady=(8, 5))
+        ttk.Label(panel, text="METHOD", style="Field.TLabel").grid(row=14, column=0, sticky="w", pady=(8, 5))
         self.method = tk.StringVar(value="GET")
-        ttk.Combobox(panel, textvariable=self.method, values=("GET", "POST"), state="readonly").grid(row=13, column=0, sticky="ew")
-        ttk.Label(panel, text="POST BODY", style="Field.TLabel").grid(row=14, column=0, sticky="w", pady=(8, 5))
+        ttk.Combobox(panel, textvariable=self.method, values=("GET", "POST"), state="readonly").grid(row=15, column=0, sticky="ew")
+        ttk.Label(panel, text="POST BODY", style="Field.TLabel").grid(row=16, column=0, sticky="w", pady=(8, 5))
         self.body = tk.StringVar(value="form")
-        ttk.Combobox(panel, textvariable=self.body, values=("form", "json"), state="readonly").grid(row=15, column=0, sticky="ew")
-        panel.rowconfigure(16, weight=1)
+        ttk.Combobox(panel, textvariable=self.body, values=("form", "json"), state="readonly").grid(row=17, column=0, sticky="ew")
+        panel.rowconfigure(18, weight=1)
         action = ttk.Frame(panel, style="Panel.TFrame")
-        action.grid(row=17, column=0, sticky="ew", pady=(20, 0))
+        action.grid(row=19, column=0, sticky="ew", pady=(20, 0))
         action.columnconfigure(0, weight=1)
         ttk.Button(action, text="Run authorized test", style="Accent.TButton", command=self._start_run).grid(row=0, column=0, sticky="ew")
         ttk.Button(action, text="Clear console", style="Secondary.TButton", command=self._clear_console).grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -226,6 +228,7 @@ class FZZApp:
         self.card_values["content"].set((profile.content_type or "Unknown").split(";", 1)[0])
         self.header_badge.configure(text="●  RECON VALIDATED", bg=COLORS["accent_dark"], fg=COLORS["accent"])
         self._write(f"[RECON] {profile.status_code}  {profile.final_url}\n", "recon")
+        self._write(f"        parameters={', '.join(profile.parameters) if profile.parameters else 'none detected'}\n", "muted")
         self._write(f"        title={profile.title or 'n/d'}  content={profile.content_type or 'n/d'}  elapsed={profile.elapsed:.2f}s\n\n", "muted")
 
     def _update_result(self, result: FuzzResult) -> None:
@@ -233,7 +236,7 @@ class FZZApp:
         self.result_count.set(f"{current} events")
         status = result.status_code if result.status_code is not None else "ERROR"
         tag = "error" if result.error else ("finding" if result.indicators else "")
-        self._write(f"[{status}] {result.elapsed:.2f}s  {result.category}/{result.technique}\n  {result.payload}\n", tag)
+        self._write(f"[{status}] {result.elapsed:.2f}s  [{result.parameter}] {result.category}/{result.technique}\n  {result.payload}\n", tag)
         for indicator in result.indicators:
             self._write(f"  [!] {indicator}\n", "finding")
         if result.error:
@@ -254,7 +257,8 @@ class FZZApp:
     def _run_worker(self) -> None:
         try:
             payloads = load_payloads(self.fields["payloads"].get())
-            config = FuzzConfig(self.fields["url"].get(), self.fields["param"].get(), self.method.get(), self.body.get(), float(self.fields["timeout"].get()), float(self.fields["pause"].get()))
+            parameter = "auto" if self.auto_params.get() else self.fields["param"].get()
+            config = FuzzConfig(self.fields["url"].get(), parameter, self.method.get(), self.body.get(), float(self.fields["timeout"].get()), float(self.fields["pause"].get()))
             fuzz_target(config, payloads, on_recon=lambda profile: self.root.after(0, self._update_recon, profile), on_result=lambda result: self.root.after(0, self._update_result, result))
             self.root.after(0, lambda: (self.header_badge.configure(text="●  COMPLETE", bg="#193C2B", fg=COLORS["success"]), self._set_status("Ejecución completada · revisa los indicadores")))
         except (ValueError, OSError, ReconError) as exc:

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fzztool.fuzzer import FuzzConfig, fuzz_target
 from fzztool.payloads import load_payloads
+from fzztool.recon import ReconProfile
 
 
 PAYLOADS = """vulnerabilities:\n  ssti:\n    - technique: arithmetic\n      payloads: ["{{{{7*7}}}}"]\n  command:\n    - technique: file\n      payloads: ["cat /etc/passwd"]\n"""
@@ -24,7 +25,8 @@ class FakeSession:
         self.calls.append(("GET", url, params, timeout))
         if params is None:
             return FakeResponse()
-        return FakeResponse("49" if "7*7" in params["q"] else "root:x:0:0:")
+        value = next(iter(params.values()))
+        return FakeResponse("49" if "7*7" in value else "root:x:0:0:")
 
 
 def test_loads_and_fuzzes_get_with_indicators(tmp_path: Path):
@@ -45,3 +47,14 @@ def test_rejects_bad_config():
         assert "http" in str(exc)
     else:
         raise AssertionError("expected validation error")
+
+
+def test_auto_parameters_fuzzes_recon_candidates_with_request_cap(tmp_path: Path):
+    file = tmp_path / "payloads.yml"
+    file.write_text("vulnerabilities:\n  xss:\n    - technique: reflected\n      payloads: ['<x>']\n", encoding="utf-8")
+    payloads = load_payloads(file)
+    profile = ReconProfile("http://test.local/search", "http://test.local/search", True, 200, 0.01, "fixture", "text/html", None, None, None, None, ["q", "term"])
+    session = FakeSession()
+    results = fuzz_target(FuzzConfig("http://test.local/search", "auto", pause=0, max_requests=2), payloads, session=session, perform_recon=False, recon_profile=profile)
+    assert [result.parameter for result in results] == ["q", "term"]
+    assert [call[2] for call in session.calls] == [{"q": "<x>"}, {"term": "<x>"}]

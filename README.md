@@ -55,8 +55,12 @@ También puede ejecutarse de forma independiente:
 ```bash
 # Fuzzing GET (incluye reconocimiento previo)
 ./fzz fuzz --url http://localhost:3000/search --param q \
-  --payloads ./Diccionario\ de\ Cargas\ Útiles\ para\ Pruebas\ de\ Seguridad\" \
+  --payloads ./Diccionario\ de\ Cargas\ Útiles\ para\ Pruebas\ de\ Seguridad" \
   --timeout 10 --pause 0.5
+
+# Detectar parámetros desde query string y formularios HTML del recon
+./fzz fuzz --url http://localhost:3000/search --auto-params \
+  --payloads ./resources/payloads.yml --max-requests 50
 
 # POST con formulario
 ./fzz fuzz --url http://localhost:3000/login --param username --method POST --body form
@@ -150,6 +154,8 @@ vulnerabilities:
 ```
 
 La herramienta carga este documento con `yaml.safe_load`, valida su estructura y limita el archivo a 1 MB. El fuzzing limita el timeout a 120 segundos, la pausa a 60 segundos y cada ejecución a 500 solicitudes como protección contra saturación accidental.
+
+Cuando se usa `--auto-params`, el recon inspecciona únicamente la URL final y hasta 512 KB del HTML recibido. Extrae nombres de parámetros de la query string y de atributos `name` en `input`, `textarea` y `select`; no sigue enlaces ni envía formularios. Los candidatos se limitan a 32 nombres y el total de solicitudes sigue limitado por `--max-requests`. La GUI ofrece la misma función mediante **Detectar parámetros automáticamente desde recon**.
 
 ## Compatibilidad con el repositorio original
 
