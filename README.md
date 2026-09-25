@@ -120,6 +120,19 @@ pip install -r requirements-dev.txt
 
 El recurso `resources/payloads.yml` se incluye dentro del bundle para que el ejecutable tenga payloads predeterminados. También se puede pasar un YAML externo con `--payloads`. La salida queda en `dist/fzz` en Linux/macOS y `dist\fzz.exe` en Windows; `build/` y `dist/` están excluidos de Git.
 
+## Compilación automática con GitHub Actions
+
+El workflow [`build.yml`](.github/workflows/build.yml) ejecuta el control de calidad y construye el bundle en runners nativos para Linux x86_64, Windows x86_64 y macOS x86_64. Se activa en pull requests, pushes a `main`, tags `v*` y ejecuciones manuales desde la pestaña **Actions**.
+
+Cada build publica un artefacto descargable con retención de 14 días. Para crear una release distribuible, crea y publica un tag semántico:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+El job de release descarga los tres ejecutables, genera `SHA256SUMS.txt` y los adjunta a una GitHub Release con notas automáticas. Los permisos del workflow están limitados a lectura por defecto; solo el job de release recibe permiso de escritura sobre contenidos.
+
 ## Formato YAML
 
 El documento debe contener una clave `vulnerabilities` con categorías, técnicas y listas de payloads:
