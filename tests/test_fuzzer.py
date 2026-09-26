@@ -58,3 +58,15 @@ def test_auto_parameters_fuzzes_recon_candidates_with_request_cap(tmp_path: Path
     results = fuzz_target(FuzzConfig("http://test.local/search", "auto", pause=0, max_requests=2), payloads, session=session, perform_recon=False, recon_profile=profile)
     assert [result.parameter for result in results] == ["q", "term"]
     assert [call[2] for call in session.calls] == [{"q": "<x>"}, {"term": "<x>"}]
+
+
+def test_auto_parameters_rejects_profile_without_candidates(tmp_path: Path):
+    file = tmp_path / "payloads.yml"
+    file.write_text("vulnerabilities:\n  xss:\n    - technique: reflected\n      payloads: ['<x>']\n", encoding="utf-8")
+    profile = ReconProfile("http://test.local", "http://test.local", True, 200, 0.01, None, "text/html", None, None, None, None, [])
+    try:
+        fuzz_target(FuzzConfig("http://test.local", "auto", pause=0), load_payloads(file), perform_recon=False, recon_profile=profile)
+    except ValueError as exc:
+        assert "parámetros candidatos" in str(exc)
+    else:
+        raise AssertionError("expected automatic parameter validation error")

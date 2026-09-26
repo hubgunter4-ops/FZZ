@@ -35,6 +35,33 @@ def test_recon_validates_target_and_returns_profile():
     assert session.calls[0][1]["allow_redirects"] is True
 
 
+def test_recon_discovers_query_and_form_parameters_without_duplicates():
+    class QueryResponse(FakeResponse):
+        url = "https://example.test/search?query=old&sort=asc"
+        content = b'<form><input name="query"><input name="filter"><textarea name="sort"></textarea></form>'
+
+    class QuerySession(FakeSession):
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            return QueryResponse()
+
+    profile = recon_target(ReconConfig("https://example.test/search"), session=QuerySession())
+    assert profile.parameters == ["query", "sort", "filter"]
+
+
+def test_recon_limits_parameter_candidates():
+    class ManyFieldsResponse(FakeResponse):
+        content = ("<form>" + "".join(f'<input name="field{i}">' for i in range(40)) + "</form>").encode()
+
+    class ManyFieldsSession(FakeSession):
+        def get(self, url, **kwargs):
+            return ManyFieldsResponse()
+
+    profile = recon_target(ReconConfig("https://example.test/search"), session=ManyFieldsSession())
+    assert len(profile.parameters) == 32
+    assert profile.parameters[-1] == "field31"
+
+
 def test_recon_rejects_credentials_and_invalid_scheme():
     for url in ("ftp://example.test", "https://user:pass@example.test"):
         try:
