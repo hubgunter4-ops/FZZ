@@ -42,3 +42,24 @@ def test_detects_private_key_and_hardcoded_secret(tmp_path: Path):
     )
     rules = {finding.rule for finding in scan_directory(tmp_path)}
     assert {"EXPOSED_PRIVATE_KEY", "HARDCODED_SECRET"} <= rules
+
+
+def test_scans_typescript_and_tsx_with_language_specific_rules(tmp_path: Path):
+    (tmp_path / "service.ts").write_text(
+        "function parse(input: any) { return input as any; }\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "component.tsx").write_text(
+        "export function View({ html }: Props) { return <div dangerouslySetInnerHTML={{ __html: html }} />; }\n",
+        encoding="utf-8",
+    )
+    findings = scan_directory(tmp_path)
+    rules = {finding.rule for finding in findings}
+    assert {"TS_UNSAFE_ANY", "TS_ASSERTION_ANY", "TSX_DANGEROUS_HTML"} <= rules
+    assert {finding.language for finding in findings} == {"TypeScript", "TSX"}
+
+
+def test_scan_file_ignores_unsupported_extensions(tmp_path: Path):
+    python_file = tmp_path / "service.py"
+    python_file.write_text("password = 'fixture-only-value'\n", encoding="utf-8")
+    assert scan_directory(tmp_path) == []

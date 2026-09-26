@@ -93,7 +93,7 @@ class FZZApp:
         brand = tk.Label(sidebar, text="FZZ", bg=COLORS["sidebar"], fg=COLORS["accent"], font=("TkDefaultFont", 25, "bold"), anchor="w")
         brand.pack(fill="x", padx=20)
         tk.Label(sidebar, text="SECURITY TOOLKIT", bg=COLORS["sidebar"], fg=COLORS["muted"], font=("TkDefaultFont", 8, "bold"), anchor="w").pack(fill="x", padx=22, pady=(0, 28))
-        for label, command in (("⌂   Overview", self._focus_workspace), ("◎   Target recon", self._focus_workspace), ("⌁   HTTP fuzzing", self._focus_workspace), ("▣   JavaScript SAST", self._start_sast)):
+        for label, command in (("⌂   Overview", self._focus_workspace), ("◎   Target recon", self._focus_workspace), ("⌁   HTTP fuzzing", self._focus_workspace), ("▣   JS / TS SAST", self._start_sast)):
             ttk.Button(sidebar, text=label, style="Nav.TButton", command=command).pack(fill="x", pady=2)
         spacer = ttk.Frame(sidebar, style="Sidebar.TFrame")
         spacer.pack(fill="both", expand=True)
@@ -217,12 +217,12 @@ class FZZApp:
             self._set_status("Diccionario general seleccionado; revisa el alcance")
 
     def _start_sast(self) -> None:
-        directory = filedialog.askdirectory(title="Seleccionar directorio JavaScript para SAST")
+        directory = filedialog.askdirectory(title="Seleccionar directorio JavaScript / TypeScript para SAST")
         if not directory:
             return
         self._clear_console()
         self.header_badge.configure(text="●  SAST RUNNING", bg="#4A3B19", fg=COLORS["warning"])
-        self._set_status("Escaneando JavaScript con reglas de criptografía y secretos…", tone="warning")
+        self._set_status("Escaneando JS/TS/TSX con reglas de seguridad…", tone="warning")
         self._write(f"[SAST] Directorio: {directory}\n", "muted")
         try:
             findings = scan_directory(directory)

@@ -1,6 +1,6 @@
 # FZZ — fuzzing HTTP y SAST para pruebas autorizadas
 
-FZZ es una herramienta educativa para ejecutar pruebas de seguridad controladas sobre aplicaciones HTTP y código JavaScript. Incluye un motor de fuzzing HTTP, una fase de reconocimiento previa, descubrimiento opcional de parámetros y un escáner SAST basado en reglas.
+FZZ es una herramienta educativa para ejecutar pruebas de seguridad controladas sobre aplicaciones HTTP y código JavaScript/TypeScript. Incluye un motor de fuzzing HTTP, una fase de reconocimiento previa, descubrimiento opcional de parámetros y un escáner SAST basado en reglas.
 
 > **Uso autorizado únicamente.** Ejecuta FZZ solo contra sistemas propios o contra targets cuyo propietario haya autorizado explícitamente la prueba. Define el alcance, el horario, el volumen máximo de solicitudes y el contacto operativo antes de iniciar cualquier ejecución.
 
@@ -26,7 +26,7 @@ _Ejemplo del reporte Markdown/JSON: baseline, resumen de confianza y contexto pa
 - **Fuzzing GET y POST:** admite formularios y JSON, con timeout, pausa y límite de solicitudes configurables.
 - **Carga YAML validada:** normaliza categorías, técnicas y payloads con `yaml.safe_load` y límites de tamaño.
 - **Detección conservadora:** identifica indicadores reflejados o relacionados con las reglas disponibles, pero no afirma explotación.
-- **SAST JavaScript:** recorre archivos `.js` y reports reglas, archivo, línea, detalle y código coincidente.
+- **SAST JS/TS:** recorre archivos `.js`, `.ts` y `.tsx`, y reporta regla, lenguaje, archivo, línea, severidad, detalle y código coincidente.
 - **Interfaz Tkinter:** ofrece un panel visual de alto contraste con reconocimiento, configuración y consola de resultados.
 - **Distribución independiente:** PyInstaller empaqueta CLI y GUI en un ejecutable único.
 - **CI multiplataforma:** GitHub Actions construye bundles para Linux, Windows y macOS.
@@ -334,9 +334,9 @@ FZZ valida el documento con `yaml.safe_load`. Los valores de payload pueden ser 
 
 El recurso `resources/payloads.yml` se incluye en el repositorio y también se embebe en el ejecutable PyInstaller.
 
-## SAST JavaScript
+## SAST JavaScript, TypeScript y TSX
 
-El comando `sast` recorre recursivamente archivos con extensión `.js`. Las reglas actuales buscan patrones indicativos de:
+El comando `sast` recorre recursivamente archivos con extensión `.js`, `.ts` y `.tsx`. Las reglas comunes se aplican a los tres formatos y las reglas específicas de TypeScript/TSX se activan solo en su extensión correspondiente. Las reglas actuales buscan patrones indicativos de:
 
 - Construcción de SQL con entrada HTTP.
 - XSS reflejado o interpolado.
@@ -344,6 +344,8 @@ El comando `sast` recorre recursivamente archivos con extensión `.js`. Las regl
 - APIs de procesos o ejecución de comandos.
 - Criptografía obsoleta o mal configurada: MD5/SHA-1, cifrados débiles, ECB y TLS inseguro.
 - Secretos expuestos: claves privadas, formatos de access keys, JWT literales y credenciales hardcodeadas.
+- TypeScript débilmente tipado: uso de `any` y aserciones `as any`.
+- TSX/DOM peligroso: `dangerouslySetInnerHTML`, `innerHTML` y `outerHTML` sin evidencia de sanitización.
 
 ![Vista SAST de FZZ](docs/images/fzz-sast.png)
 
@@ -355,7 +357,7 @@ Ejemplo de salida JSON:
 ./fzz sast ./src --json-output > findings.json
 ```
 
-Los resultados incluyen regla, severidad (`medium`, `high`, `critical`), confianza, archivo, línea, detalle y código coincidente. En la GUI, selecciona **JavaScript SAST** para escoger un directorio y ejecutar estas reglas desde la pestaña de resultados. El escáner es deliberadamente ligero y basado en expresiones regulares; debe complementarse con revisión manual, rotación de secretos y herramientas SAST especializadas cuando el riesgo lo requiera.
+Los resultados incluyen regla, severidad (`low`, `medium`, `high`, `critical`), confianza, lenguaje, archivo, línea, detalle y código coincidente. En la GUI, selecciona **JS / TS SAST** para escoger un directorio y ejecutar estas reglas desde la pestaña de resultados. El escáner es deliberadamente ligero y basado en expresiones regulares; debe complementarse con revisión manual, rotación de secretos y herramientas SAST especializadas cuando el riesgo lo requiera.
 
 ## Códigos de salida
 
@@ -437,7 +439,7 @@ fzztool/
 ├── payloads.py     # carga, validación y normalización YAML
 ├── report.py        # reportes JSON/Markdown y resumen de confianza
 ├── recon.py        # validación, perfilado y candidatos de parámetros
-└── sast.py         # escáner SAST JavaScript
+└── sast.py         # escáner SAST JS/TS/TSX
 
 resources/payloads.yml       # diccionario general distribuible
 resources/safe-checks.yml    # comprobaciones no destructivas precargadas

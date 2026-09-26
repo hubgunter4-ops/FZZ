@@ -30,7 +30,7 @@ def _add_check_options(command: argparse.ArgumentParser, *, payload_default: str
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="fzz", description="Fuzzing HTTP y SAST JavaScript para pruebas autorizadas.")
+    parser = argparse.ArgumentParser(prog="fzz", description="Fuzzing HTTP y SAST JavaScript/TypeScript para pruebas autorizadas.")
     parser.add_argument("--version", action="version", version="fzz 1.0.0")
     sub = parser.add_subparsers(dest="command", required=True)
     fuzz = sub.add_parser("fuzz", help="Enviar payloads YAML a un parámetro HTTP")
@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     recon.add_argument("--url", required=True)
     recon.add_argument("--timeout", type=float, default=10.0)
     recon.add_argument("--json-output", action="store_true")
-    sast = sub.add_parser("sast", help="Escanear archivos JavaScript con reglas regex")
+    sast = sub.add_parser("sast", help="Escanear archivos JavaScript, TypeScript y TSX con reglas regex")
     sast.add_argument("directory")
     sast.add_argument("--json-output", action="store_true")
     sub.add_parser("gui", help="Abrir la interfaz Tkinter opcional")

@@ -1,4 +1,4 @@
-"""Lightweight regex-based JavaScript SAST scanner."""
+"""Lightweight regex-based JavaScript/TypeScript/TSX SAST scanner."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -8,6 +8,7 @@ from typing import Any
 
 MAX_FILE_SIZE = 2_000_000
 MAX_FILES = 1_000
+SUPPORTED_EXTENSIONS = {".js", ".ts", ".tsx"}
 
 # Patterns intentionally require concrete API names or secret formats to keep findings actionable.
 RULES: dict[str, tuple[str, str]] = {
@@ -35,6 +36,13 @@ _SEVERITY: dict[str, str] = {
     "TLS_WEAK_CONFIGURATION": "high",
 }
 
+LANGUAGE_RULES: dict[str, tuple[str, str, str, str]] = {
+    "TS_UNSAFE_ANY": (".ts", r"(?:^|[(:,=]\s*)any\b", "TypeScript débilmente tipado: `any` elimina comprobaciones estáticas en un flujo de datos potencialmente sensible.", "low"),
+    "TS_ASSERTION_ANY": (".ts", r"\bas\s+any\b", "TypeScript: una aserción `as any` puede ocultar incompatibilidades y validaciones ausentes.", "low"),
+    "TSX_DANGEROUS_HTML": (".tsx", r"dangerouslySetInnerHTML\s*=\s*\{\s*\{", "TSX peligroso: HTML inyectado mediante dangerouslySetInnerHTML requiere sanitización y control de origen.", "high"),
+    "TSX_RAW_DOM_HTML": (".tsx", r"(?:innerHTML|outerHTML)\s*=", "TSX/DOM: asignación directa de HTML puede introducir XSS si el valor no está sanitizado.", "high"),
+}
+
 
 @dataclass(frozen=True)
 class SastFinding:
@@ -45,6 +53,7 @@ class SastFinding:
     code: str
     severity: str = "medium"
     confidence: str = "medium"
+    language: str = "JavaScript"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -52,7 +61,8 @@ class SastFinding:
 
 def scan_file(path: str | Path, *, max_size: int = MAX_FILE_SIZE) -> list[SastFinding]:
     file_path = Path(path)
-    if file_path.suffix != ".js":
+    suffix = file_path.suffix.lower()
+    if suffix not in SUPPORTED_EXTENSIONS:
         return []
     if file_path.stat().st_size > max_size:
         raise ValueError(f"El archivo supera el límite de {max_size} bytes: {file_path}")
@@ -62,9 +72,15 @@ def scan_file(path: str | Path, *, max_size: int = MAX_FILE_SIZE) -> list[SastFi
         raise ValueError(f"No se pudo leer {file_path}: {exc}") from exc
     findings: list[SastFinding] = []
     for number, code in enumerate(lines, 1):
-        for rule, (pattern, detail) in RULES.items():
+        rules = list(RULES.items())
+        language_rules = [(rule, (pattern, detail)) for rule, (extension, pattern, detail, severity) in LANGUAGE_RULES.items() if extension == suffix]
+        rules.extend(language_rules)
+        for rule, (pattern, detail) in rules:
             if re.search(pattern, code, re.IGNORECASE):
-                findings.append(SastFinding(rule, str(file_path), number, detail, code.strip(), _SEVERITY.get(rule, "medium"), "high"))
+                language = "TSX" if suffix == ".tsx" else ("TypeScript" if suffix == ".ts" else "JavaScript")
+                severity = next((item[3] for key, item in LANGUAGE_RULES.items() if key == rule), _SEVERITY.get(rule, "medium"))
+                confidence = "medium" if rule in {"TS_UNSAFE_ANY", "TS_ASSERTION_ANY"} else "high"
+                findings.append(SastFinding(rule, str(file_path), number, detail, code.strip(), severity, confidence, language))
     return findings
 
 
@@ -72,13 +88,13 @@ def scan_directory(directory: str | Path, *, max_size: int = MAX_FILE_SIZE, max_
     root = Path(directory)
     if not root.is_dir():
         raise ValueError(f"El directorio no existe: {root}")
-    files = sorted(path for path in root.rglob("*.js") if path.is_file())
+    files = sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS)
     if len(files) > max_files:
-        raise ValueError(f"El escaneo supera el límite de {max_files} archivos JavaScript")
+        raise ValueError(f"El escaneo supera el límite de {max_files} archivos JS/TS/TSX")
     findings: list[SastFinding] = []
     for path in files:
         findings.extend(scan_file(path, max_size=max_size))
     return findings
 
 
-__all__ = ["RULES", "SastFinding", "scan_file", "scan_directory"]
+__all__ = ["LANGUAGE_RULES", "RULES", "SUPPORTED_EXTENSIONS", "SastFinding", "scan_file", "scan_directory"]
