@@ -67,4 +67,13 @@ def default_payload_file() -> Path:
     return Path(__file__).resolve().parent.parent / "payloads-legacy-full.yml"
 
 
-__all__ = ["Payload", "load_payloads", "normalize_payloads", "default_payload_file"]
+def default_check_file() -> Path:
+    """Return the bundled non-destructive checks dictionary."""
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    bundled = bundle_root / "resources" / "safe-checks.yml"
+    if bundled.is_file():
+        return bundled
+    return Path(__file__).resolve().parent.parent / "resources" / "safe-checks.yml"
+
+
+__all__ = ["Payload", "load_payloads", "normalize_payloads", "default_payload_file", "default_check_file"]

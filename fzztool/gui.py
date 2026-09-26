@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from .fuzzer import FuzzConfig, FuzzResult, fuzz_target
-from .payloads import default_payload_file, load_payloads
+from .payloads import default_check_file, default_payload_file, load_payloads
 from .recon import ReconError, ReconProfile
 
 
@@ -137,7 +137,7 @@ class FZZApp:
         ttk.Label(panel, text="Test configuration", style="Section.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(panel, text="Define el target y los límites antes de ejecutar.", style="Body.TLabel").grid(row=1, column=0, sticky="w", pady=(5, 18))
         self.fields: dict[str, tk.StringVar] = {}
-        defaults = {"url": "http://localhost:3000/", "param": "q", "payloads": str(default_payload_file()), "timeout": "10", "pause": "0.5"}
+        defaults = {"url": "http://localhost:3000/", "param": "q", "payloads": str(default_check_file()), "timeout": "10", "pause": "0.5"}
         rows = (("url", "TARGET URL", "http(s)://..."), ("param", "PARAMETER", "q"), ("payloads", "PAYLOAD YAML", "Selecciona un archivo"), ("timeout", "TIMEOUT (SECONDS)", "10"), ("pause", "PAUSE BETWEEN REQUESTS", "0.5"))
         for index, (key, label, hint) in enumerate(rows):
             row = 2 + (index * 2)
@@ -151,17 +151,19 @@ class FZZApp:
             if key == "payloads":
                 ttk.Button(holder, text="Browse", style="Secondary.TButton", command=self._browse_payloads).grid(row=0, column=1, padx=(6, 0))
             entry.bind("<FocusIn>", lambda event, h=hint: self._set_status(f"Campo activo · {h}"))
+        self.safe_checks = tk.BooleanVar(value=True)
+        ttk.Checkbutton(panel, text="Usar comprobaciones seguras precargadas", variable=self.safe_checks, command=self._toggle_safe_checks).grid(row=12, column=0, sticky="w", pady=(8, 5))
         self.auto_params = tk.BooleanVar(value=False)
-        ttk.Checkbutton(panel, text="Detectar parámetros automáticamente desde recon", variable=self.auto_params).grid(row=12, column=0, sticky="w", pady=(8, 5))
-        ttk.Label(panel, text="METHOD", style="Field.TLabel").grid(row=14, column=0, sticky="w", pady=(8, 5))
+        ttk.Checkbutton(panel, text="Detectar parámetros automáticamente desde recon", variable=self.auto_params).grid(row=13, column=0, sticky="w", pady=(8, 5))
+        ttk.Label(panel, text="METHOD", style="Field.TLabel").grid(row=15, column=0, sticky="w", pady=(8, 5))
         self.method = tk.StringVar(value="GET")
-        ttk.Combobox(panel, textvariable=self.method, values=("GET", "POST"), state="readonly").grid(row=15, column=0, sticky="ew")
-        ttk.Label(panel, text="POST BODY", style="Field.TLabel").grid(row=16, column=0, sticky="w", pady=(8, 5))
+        ttk.Combobox(panel, textvariable=self.method, values=("GET", "POST"), state="readonly").grid(row=16, column=0, sticky="ew")
+        ttk.Label(panel, text="POST BODY", style="Field.TLabel").grid(row=17, column=0, sticky="w", pady=(8, 5))
         self.body = tk.StringVar(value="form")
-        ttk.Combobox(panel, textvariable=self.body, values=("form", "json"), state="readonly").grid(row=17, column=0, sticky="ew")
-        panel.rowconfigure(18, weight=1)
+        ttk.Combobox(panel, textvariable=self.body, values=("form", "json"), state="readonly").grid(row=18, column=0, sticky="ew")
+        panel.rowconfigure(19, weight=1)
         action = ttk.Frame(panel, style="Panel.TFrame")
-        action.grid(row=19, column=0, sticky="ew", pady=(20, 0))
+        action.grid(row=20, column=0, sticky="ew", pady=(20, 0))
         action.columnconfigure(0, weight=1)
         ttk.Button(action, text="Run authorized test", style="Accent.TButton", command=self._start_run).grid(row=0, column=0, sticky="ew")
         ttk.Button(action, text="Clear console", style="Secondary.TButton", command=self._clear_console).grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -204,6 +206,14 @@ class FZZApp:
         if chosen:
             self.fields["payloads"].set(chosen)
             self._set_status("Archivo de payload seleccionado")
+
+    def _toggle_safe_checks(self) -> None:
+        if self.safe_checks.get():
+            self.fields["payloads"].set(str(default_check_file()))
+            self._set_status("Comprobaciones seguras precargadas")
+        else:
+            self.fields["payloads"].set(str(default_payload_file()))
+            self._set_status("Diccionario general seleccionado; revisa el alcance")
 
     def _set_status(self, value: str, *, tone: str = "normal") -> None:
         self.status.configure(text=value, foreground=COLORS.get(tone, COLORS["muted"]))

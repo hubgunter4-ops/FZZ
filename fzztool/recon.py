@@ -1,7 +1,7 @@
 """Safe, bounded HTTP reconnaissance for an explicitly supplied target."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from html import unescape
 import re
 import time
@@ -13,6 +13,8 @@ import requests
 MAX_RECON_TIMEOUT = 30.0
 MAX_RESPONSE_BYTES = 512_000
 MAX_PARAMETER_CANDIDATES = 32
+_BASELINE_MARKERS = ("49", "root:x:0:0:", "[boot loader]", "daemon:x:")
+_REFLECTION_MARKER_RE = re.compile(r"fzz-reflection-[a-z0-9-]+", re.IGNORECASE)
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _FIELD_NAME_RE = re.compile(
     r"<(?:input|textarea|select)\b[^>]*\bname\s*=\s*(?:\"([^\"]+)\"|'([^']+)'|([^\s>]+))",
@@ -65,6 +67,7 @@ class ReconProfile:
     powered_by: str | None
     allowed_methods: str | None
     parameters: list[str]
+    baseline_signatures: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -78,10 +81,8 @@ def _title(body: str) -> str | None:
 
 
 def _parameter_candidates(url: str, body: str) -> list[str]:
-    """Return bounded, de-duplicated parameter names without submitting forms."""
     names: list[str] = []
-    parsed = urlparse(url)
-    names.extend(name for name, _ in parse_qsl(parsed.query, keep_blank_values=True))
+    names.extend(name for name, _ in parse_qsl(urlparse(url).query, keep_blank_values=True))
     for match in _FIELD_NAME_RE.finditer(body):
         names.append(next((group for group in match.groups() if group), ""))
     result: list[str] = []
@@ -94,6 +95,12 @@ def _parameter_candidates(url: str, body: str) -> list[str]:
         if len(result) >= MAX_PARAMETER_CANDIDATES:
             break
     return result
+
+
+def _baseline_signatures(body: str) -> list[str]:
+    signatures = [marker for marker in _BASELINE_MARKERS if marker in body]
+    signatures.extend(match.lower() for match in _REFLECTION_MARKER_RE.findall(body))
+    return list(dict.fromkeys(signatures))
 
 
 def recon_target(config: ReconConfig, *, session: requests.Session | None = None) -> ReconProfile:
@@ -112,9 +119,10 @@ def recon_target(config: ReconConfig, *, session: requests.Session | None = None
         raise ReconError(f"No se pudo contactar el target: {exc}") from exc
     elapsed = time.monotonic() - started
     body = response.content[: config.max_response_bytes].decode(response.encoding or "utf-8", errors="replace")
+    final_url = str(response.url)
     return ReconProfile(
         requested_url=normalized_url,
-        final_url=str(response.url),
+        final_url=final_url,
         reachable=True,
         status_code=response.status_code,
         elapsed=elapsed,
@@ -124,7 +132,8 @@ def recon_target(config: ReconConfig, *, session: requests.Session | None = None
         server=response.headers.get("Server"),
         powered_by=response.headers.get("X-Powered-By"),
         allowed_methods=response.headers.get("Allow"),
-        parameters=_parameter_candidates(str(response.url), body),
+        parameters=_parameter_candidates(final_url, body),
+        baseline_signatures=_baseline_signatures(body),
     )
 
 

@@ -10,7 +10,10 @@ analysis = Analysis(
     [str(ROOT / "packaging" / "fzz_entry.py")],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=[(str(ROOT / "resources" / "payloads.yml"), "resources")],
+    datas=[
+        (str(ROOT / "resources" / "payloads.yml"), "resources"),
+        (str(ROOT / "resources" / "safe-checks.yml"), "resources"),
+    ],
     hiddenimports=collect_submodules("fzztool"),
     hookspath=[],
     hooksconfig={},

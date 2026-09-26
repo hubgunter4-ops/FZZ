@@ -18,6 +18,7 @@ FZZ genera **indicadores**, no pruebas concluyentes de explotación. Todo hallaz
 - **Interfaz Tkinter:** ofrece un panel visual de alto contraste con reconocimiento, configuración y consola de resultados.
 - **Distribución independiente:** PyInstaller empaqueta CLI y GUI en un ejecutable único.
 - **CI multiplataforma:** GitHub Actions construye bundles para Linux, Windows y macOS.
+- **Comprobaciones precargadas:** el subcomando `check` usa cargas no destructivas y genera reportes detallados.
 
 ## Requisitos
 
@@ -161,6 +162,18 @@ Escaneo SAST:
 ./fzz sast ./mi-aplicacion --json-output
 ```
 
+Comprobación precargada con cargas no destructivas:
+
+```bash
+./fzz check \
+  --url http://localhost:3000/search \
+  --auto-params \
+  --max-requests 20 \
+  --report reports/check.md
+```
+
+El diccionario predeterminado de `check` está en [`resources/safe-checks.yml`](resources/safe-checks.yml). Contiene un marcador sintético de reflexión y expresiones aritméticas controladas; no incluye comandos de sistema, lectura de archivos ni cargas destructivas. Para usar el diccionario general de pruebas, utiliza `fuzz --payloads` de forma explícita.
+
 ## Flujo de reconocimiento y fuzzing
 
 El comando `fuzz` valida primero la configuración y el target. Después ejecuta una sola solicitud GET con redirecciones habilitadas. Si esa fase falla, no se envían payloads.
@@ -196,6 +209,22 @@ Cada resultado conserva el parámetro usado, tanto en la salida normal como en J
 ```text
 [200] 0.31s [query] xss/Reflejado Básico: <svg/onload=alert(1)>
 ```
+
+## Reducción de falsos positivos y reportes
+
+El reconocimiento registra firmas que ya estaban presentes en la respuesta base. Los detectores no vuelven a reportar esas firmas como resultado de un payload. La reflexión usa un token sintético único y exige que el token aparezca en la respuesta. La evaluación SSTI requiere el resultado aritmético esperado y se clasifica con confianza media. Las coincidencias de marcadores sensibles y anomalías de tiempo se clasifican con confianza baja porque pueden tener explicaciones legítimas. Las señales se deduplican por código.
+
+Cada `FuzzResult` conserva el texto compatible para humanos y una lista estructurada `findings` con `code`, `detail` y `confidence`. Para guardar el contexto completo:
+
+```bash
+./fzz check --url http://localhost:3000/search --param q \
+  --report reports/check.json --report-format json
+
+./fzz check --url http://localhost:3000/search --param q \
+  --report reports/check.md --report-format markdown
+```
+
+El reporte incluye fecha UTC, modo, perfil de recon, firmas baseline, parámetros candidatos, número de solicitudes, conteo por confianza, payload, parámetro y detalle de cada indicador. Un reporte sin hallazgos también se genera para dejar evidencia de que la comprobación se ejecutó.
 
 ## Fuzzing HTTP
 
@@ -378,7 +407,8 @@ fzztool/
 ├── recon.py        # validación, perfilado y candidatos de parámetros
 └── sast.py         # escáner SAST JavaScript
 
-resources/payloads.yml       # diccionario distribuible
+resources/payloads.yml       # diccionario general distribuible
+resources/safe-checks.yml    # comprobaciones no destructivas precargadas
 packaging/fzz_entry.py       # entrada PyInstaller
 fzz.spec                     # configuración del bundle
 scripts/install.*             # instaladores locales

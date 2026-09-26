@@ -1,0 +1,14 @@
+version: "1.0"
+description: "Comprobaciones precargadas no destructivas para FZZ"
+vulnerabilities:
+  reflection:
+    - technique: "Marcador de reflexión inocuo"
+      description: "Busca la reflexión de un token sintético sin ejecutar código."
+      payloads:
+        - "fzz-reflection-check-9d3c"
+  ssti:
+    - technique: "Evaluación aritmética controlada"
+      description: "Comprueba si el motor evalúa una expresión matemática sin ejecutar comandos."
+      payloads:
+        - "{{7*7}}"
+        - "${7*7}"

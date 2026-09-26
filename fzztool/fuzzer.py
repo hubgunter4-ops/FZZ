@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable
 
 import requests
 
-from .detectors import detect_indicators
+from .detectors import detect_indicators, indicator_details
 from .payloads import Payload
 from .recon import ReconConfig, ReconProfile, recon_target
 
@@ -55,6 +55,7 @@ class FuzzResult:
     response_length: int
     elapsed: float
     indicators: list[str]
+    findings: list[dict[str, str]]
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -108,12 +109,18 @@ def fuzz_target(
                 else:
                     response = client.post(config.url, data=data, timeout=config.timeout)
                 elapsed = time.monotonic() - started
+                findings = detect_indicators(
+                    payload,
+                    response.text,
+                    elapsed,
+                    timing_threshold=threshold,
+                    baseline_signatures=profile.baseline_signatures if profile else (),
+                )
                 result = FuzzResult(payload.category, payload.technique, parameter, payload.value, response.status_code,
-                                    len(response.text), elapsed,
-                                    detect_indicators(payload, response.text, elapsed, timing_threshold=threshold))
+                                    len(response.text), elapsed, indicator_details(findings), findings)
             except requests.RequestException as exc:
                 elapsed = time.monotonic() - started
-                result = FuzzResult(payload.category, payload.technique, parameter, payload.value, None, 0, elapsed, [], str(exc))
+                result = FuzzResult(payload.category, payload.technique, parameter, payload.value, None, 0, elapsed, [], [], str(exc))
             results.append(result)
             if on_result:
                 on_result(result)

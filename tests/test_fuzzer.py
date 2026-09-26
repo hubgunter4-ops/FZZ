@@ -60,6 +60,16 @@ def test_auto_parameters_fuzzes_recon_candidates_with_request_cap(tmp_path: Path
     assert [call[2] for call in session.calls] == [{"q": "<x>"}, {"term": "<x>"}]
 
 
+def test_baseline_signatures_reduce_false_positive_for_existing_marker():
+    from fzztool.detectors import detect_indicators
+    payload = load_payloads(Path("resources/safe-checks.yml"))[0]
+    body = "<html>fzz-reflection-check-9d3c</html>"
+    findings = detect_indicators(payload, body, 0.01, timing_threshold=4.0, baseline_signatures=[])
+    assert findings and findings[0]["code"] == "REFLECTION"
+    filtered = detect_indicators(payload, body, 0.01, timing_threshold=4.0, baseline_signatures=["fzz-reflection-check-9d3c"])
+    assert filtered == []
+
+
 def test_auto_parameters_rejects_profile_without_candidates(tmp_path: Path):
     file = tmp_path / "payloads.yml"
     file.write_text("vulnerabilities:\n  xss:\n    - technique: reflected\n      payloads: ['<x>']\n", encoding="utf-8")
