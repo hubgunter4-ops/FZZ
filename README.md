@@ -342,6 +342,12 @@ El comando `sast` recorre recursivamente archivos con extensión `.js`. Las regl
 - XSS reflejado o interpolado.
 - Uso de `eval`.
 - APIs de procesos o ejecución de comandos.
+- Criptografía obsoleta o mal configurada: MD5/SHA-1, cifrados débiles, ECB y TLS inseguro.
+- Secretos expuestos: claves privadas, formatos de access keys, JWT literales y credenciales hardcodeadas.
+
+![Vista SAST de FZZ](docs/images/fzz-sast.png)
+
+_La vista SAST muestra severidad, regla, archivo, línea y detalle para priorizar la revisión._
 
 Ejemplo de salida JSON:
 
@@ -349,7 +355,7 @@ Ejemplo de salida JSON:
 ./fzz sast ./src --json-output > findings.json
 ```
 
-Los resultados incluyen regla, archivo, línea, detalle y código coincidente. El escáner es deliberadamente ligero y basado en expresiones regulares; debe complementarse con revisión manual y herramientas SAST especializadas cuando el riesgo lo requiera.
+Los resultados incluyen regla, severidad (`medium`, `high`, `critical`), confianza, archivo, línea, detalle y código coincidente. En la GUI, selecciona **JavaScript SAST** para escoger un directorio y ejecutar estas reglas desde la pestaña de resultados. El escáner es deliberadamente ligero y basado en expresiones regulares; debe complementarse con revisión manual, rotación de secretos y herramientas SAST especializadas cuando el riesgo lo requiera.
 
 ## Códigos de salida
 

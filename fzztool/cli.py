@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(findings, ensure_ascii=False, indent=2))
         else:
             for finding in findings:
-                print(f"[!] {finding['rule']} | {finding['file']}:{finding['line']} | {finding['detail']}\n    {finding['code']}")
+                print(f"[!] {finding['severity'].upper()} / {finding['confidence']} | {finding['rule']} | {finding['file']}:{finding['line']} | {finding['detail']}\n    {finding['code']}")
             print(f"Escaneo finalizado: {len(findings)} hallazgo(s).")
         return 1 if findings else 0
     except ValueError as exc:

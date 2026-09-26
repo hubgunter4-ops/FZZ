@@ -9,6 +9,7 @@ from typing import Callable
 from .fuzzer import FuzzConfig, FuzzResult, fuzz_target
 from .payloads import default_check_file, default_payload_file, load_payloads
 from .recon import ReconError, ReconProfile
+from .sast import scan_directory
 
 
 # Design tokens: 8pt rhythm, high contrast, restrained utility-tool palette.
@@ -92,8 +93,8 @@ class FZZApp:
         brand = tk.Label(sidebar, text="FZZ", bg=COLORS["sidebar"], fg=COLORS["accent"], font=("TkDefaultFont", 25, "bold"), anchor="w")
         brand.pack(fill="x", padx=20)
         tk.Label(sidebar, text="SECURITY TOOLKIT", bg=COLORS["sidebar"], fg=COLORS["muted"], font=("TkDefaultFont", 8, "bold"), anchor="w").pack(fill="x", padx=22, pady=(0, 28))
-        for label in ("⌂   Overview", "◎   Target recon", "⌁   HTTP fuzzing", "▣   JavaScript SAST"):
-            ttk.Button(sidebar, text=label, style="Nav.TButton", command=lambda: self._focus_workspace()).pack(fill="x", pady=2)
+        for label, command in (("⌂   Overview", self._focus_workspace), ("◎   Target recon", self._focus_workspace), ("⌁   HTTP fuzzing", self._focus_workspace), ("▣   JavaScript SAST", self._start_sast)):
+            ttk.Button(sidebar, text=label, style="Nav.TButton", command=command).pack(fill="x", pady=2)
         spacer = ttk.Frame(sidebar, style="Sidebar.TFrame")
         spacer.pack(fill="both", expand=True)
         tk.Label(sidebar, text="AUTHORIZED USE ONLY", bg=COLORS["sidebar"], fg=COLORS["warning"], font=("TkDefaultFont", 8, "bold"), anchor="w").pack(fill="x", padx=22)
@@ -214,6 +215,28 @@ class FZZApp:
         else:
             self.fields["payloads"].set(str(default_payload_file()))
             self._set_status("Diccionario general seleccionado; revisa el alcance")
+
+    def _start_sast(self) -> None:
+        directory = filedialog.askdirectory(title="Seleccionar directorio JavaScript para SAST")
+        if not directory:
+            return
+        self._clear_console()
+        self.header_badge.configure(text="●  SAST RUNNING", bg="#4A3B19", fg=COLORS["warning"])
+        self._set_status("Escaneando JavaScript con reglas de criptografía y secretos…", tone="warning")
+        self._write(f"[SAST] Directorio: {directory}\n", "muted")
+        try:
+            findings = scan_directory(directory)
+        except (OSError, ValueError) as exc:
+            self.header_badge.configure(text="●  BLOCKED", bg="#4A2024", fg=COLORS["danger"])
+            self._set_status("SAST bloqueado: revisa el directorio", tone="danger")
+            self._write(f"[SAST] [!] {exc}\n", "error")
+            return
+        self.result_count.set(f"{len(findings)} findings")
+        for finding in findings:
+            self._write(f"[{finding.severity.upper()}] {finding.rule}  {finding.file}:{finding.line}\n", "finding")
+            self._write(f"  {finding.detail}\n  {finding.code}\n\n")
+        self.header_badge.configure(text="●  SAST COMPLETE", bg="#193C2B", fg=COLORS["success"])
+        self._set_status(f"SAST completado · {len(findings)} hallazgo(s); revisa contexto y confianza")
 
     def _set_status(self, value: str, *, tone: str = "normal") -> None:
         self.status.configure(text=value, foreground=COLORS.get(tone, COLORS["muted"]))
