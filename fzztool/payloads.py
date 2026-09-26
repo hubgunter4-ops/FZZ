@@ -64,7 +64,7 @@ def default_payload_file() -> Path:
     bundled = bundle_root / "resources" / "payloads.yml"
     if bundled.is_file():
         return bundled
-    return Path(__file__).resolve().parent.parent / "Diccionario de Cargas Útiles para Pruebas de Seguridad\""
+    return Path(__file__).resolve().parent.parent / "payloads-legacy-full.yml"
 
 
 __all__ = ["Payload", "load_payloads", "normalize_payloads", "default_payload_file"]

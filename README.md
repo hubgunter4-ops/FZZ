@@ -387,7 +387,7 @@ scripts/build.*               # builds PyInstaller
 tests/                        # pruebas unitarias
 ```
 
-Los archivos heredados sin extensión —`fuzz`, `parser`, `pay` y `rules`— se conservan como prototipos históricos. La implementación mantenible está en `fzztool/`.
+Los archivos heredados sin extensión —`fuzz`, `parser`, `pay` y `rules`— se conservan como prototipos históricos. Los diccionarios heredados se conservan como `payloads-legacy-full.yml` y `payloads-legacy-basic.yml`; sus nombres no contienen caracteres inválidos para Windows. La implementación mantenible está en `fzztool/`.
 
 ## Desarrollo y verificación
 
