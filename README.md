@@ -6,6 +6,18 @@ FZZ es una herramienta educativa para ejecutar pruebas de seguridad controladas 
 
 FZZ genera **indicadores**, no pruebas concluyentes de explotación. Todo hallazgo requiere revisión manual y validación dentro del alcance aprobado.
 
+## Vista rápida
+
+FZZ está pensado para una primera comprobación reproducible y acotada: valida un target, registra su respuesta base, detecta parámetros observables, ejecuta cargas seguras precargadas y deja evidencia estructurada. Puedes usarlo desde CLI, GUI o como ejecutable independiente; no necesita crawling ni intenta adivinar rutas.
+
+![Panel de control FZZ](docs/images/fzz-gui.png)
+
+_Panel Tkinter con comprobaciones seguras precargadas, reconocimiento validado y consola de resultados._
+
+![Reporte detallado FZZ](docs/images/fzz-report-preview.svg)
+
+_Ejemplo del reporte Markdown/JSON: baseline, resumen de confianza y contexto para revisión manual._
+
 ## Funcionalidades principales
 
 - **Reconocimiento HTTP acotado:** valida el target y realiza una única solicitud GET antes del fuzzing.
@@ -100,6 +112,19 @@ Para instalar dependencias de desarrollo:
 $env:FZZ_INSTALL_DEV = "1"
 .\scripts\install.ps1
 ```
+
+### Instaladores y descargas directas
+
+Para instalar sin copiar archivos manualmente, usa los instaladores versionados del repositorio:
+
+- [Instalador Linux/macOS (`install.sh`)](https://raw.githubusercontent.com/hubgunter4-ops/FZZ/main/scripts/install.sh)
+- [Instalador Windows PowerShell (`install.ps1`)](https://raw.githubusercontent.com/hubgunter4-ops/FZZ/main/scripts/install.ps1)
+- [Build Linux/macOS (`build.sh`)](https://raw.githubusercontent.com/hubgunter4-ops/FZZ/main/scripts/build.sh)
+- [Build Windows (`build.ps1`)](https://raw.githubusercontent.com/hubgunter4-ops/FZZ/main/scripts/build.ps1)
+- [Releases y binarios publicados](https://github.com/hubgunter4-ops/FZZ/releases)
+- [Artifacts de GitHub Actions](https://github.com/hubgunter4-ops/FZZ/actions/workflows/build.yml)
+
+Los enlaces de instalador redirigen al contenido actual de `main`; los enlaces de releases apuntan a binarios inmutables cuando una versión está publicada.
 
 ### Instalación para desarrollo con Make
 
@@ -404,6 +429,7 @@ fzztool/
 ├── fuzzer.py       # motor HTTP y límites de solicitudes
 ├── gui.py          # panel Tkinter
 ├── payloads.py     # carga, validación y normalización YAML
+├── report.py        # reportes JSON/Markdown y resumen de confianza
 ├── recon.py        # validación, perfilado y candidatos de parámetros
 └── sast.py         # escáner SAST JavaScript
 
@@ -417,7 +443,7 @@ scripts/build.*               # builds PyInstaller
 tests/                        # pruebas unitarias
 ```
 
-Los archivos heredados sin extensión —`fuzz`, `parser`, `pay` y `rules`— se conservan como prototipos históricos. Los diccionarios heredados se conservan como `payloads-legacy-full.yml` y `payloads-legacy-basic.yml`; sus nombres no contienen caracteres inválidos para Windows. La implementación mantenible está en `fzztool/`.
+El repositorio conserva únicamente la implementación mantenida, sus recursos distribuidos, scripts de instalación/build, pruebas y documentación. Los prototipos históricos y diccionarios duplicados fueron retirados para evitar ambigüedad y problemas de checkout en Windows.
 
 ## Desarrollo y verificación
 

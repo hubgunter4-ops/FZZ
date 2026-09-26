@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780">
+  <rect width="1280" height="780" fill="#0b1220"/>
+  <rect x="36" y="32" width="1208" height="716" rx="12" fill="#16243a" stroke="#2c4363"/>
+  <text x="72" y="88" fill="#4fd1c5" font-family="sans-serif" font-size="28" font-weight="700">FZZ — Reporte de comprobación autorizada</text>
+  <text x="72" y="124" fill="#afc0d6" font-family="sans-serif" font-size="15">Indicadores orientativos; no constituyen confirmación de explotación.</text>
+  <line x1="72" y1="154" x2="1208" y2="154" stroke="#2c4363"/>
+  <text x="72" y="194" fill="#f4f7fb" font-family="monospace" font-size="16">MODE       check</text>
+  <text x="360" y="194" fill="#f4f7fb" font-family="monospace" font-size="16">TARGET     https://app.example.test/search</text>
+  <text x="72" y="226" fill="#f4f7fb" font-family="monospace" font-size="16">REQUESTS   4</text>
+  <text x="360" y="226" fill="#f4f7fb" font-family="monospace" font-size="16">FINDINGS   1</text>
+  <text x="72" y="258" fill="#79e2a5" font-family="monospace" font-size="16">HIGH       1</text>
+  <text x="250" y="258" fill="#f6c85f" font-family="monospace" font-size="16">MEDIUM     0</text>
+  <text x="440" y="258" fill="#ff8b8b" font-family="monospace" font-size="16">LOW        0</text>
+  <rect x="72" y="300" width="1136" height="52" fill="#1b2d48"/>
+  <text x="92" y="333" fill="#afc0d6" font-family="sans-serif" font-size="15" font-weight="700">CONFIDENCE</text>
+  <text x="260" y="333" fill="#afc0d6" font-family="sans-serif" font-size="15" font-weight="700">CODE</text>
+  <text x="430" y="333" fill="#afc0d6" font-family="sans-serif" font-size="15" font-weight="700">PARAMETER</text>
+  <text x="620" y="333" fill="#afc0d6" font-family="sans-serif" font-size="15" font-weight="700">DETAIL</text>
+  <rect x="72" y="352" width="1136" height="94" fill="#102235"/>
+  <text x="92" y="405" fill="#79e2a5" font-family="monospace" font-size="16">alta</text>
+  <text x="260" y="405" fill="#4fd1c5" font-family="monospace" font-size="16">REFLECTION</text>
+  <text x="430" y="405" fill="#f4f7fb" font-family="monospace" font-size="16">q</text>
+  <text x="620" y="392" fill="#f4f7fb" font-family="sans-serif" font-size="16">Token sintético presente en la respuesta;</text>
+  <text x="620" y="418" fill="#afc0d6" font-family="sans-serif" font-size="15">requiere confirmar el contexto de salida.</text>
+  <text x="72" y="500" fill="#4fd1c5" font-family="sans-serif" font-size="20" font-weight="700">Interpretación</text>
+  <text x="72" y="536" fill="#afc0d6" font-family="sans-serif" font-size="16">El baseline se registró antes de enviar payloads y las señales conocidas se deduplicaron.</text>
+  <text x="72" y="568" fill="#afc0d6" font-family="sans-serif" font-size="16">Revisa manualmente el contexto: un indicador puede ser contenido legítimo o un falso positivo.</text>
+  <rect x="72" y="620" width="1136" height="70" rx="8" fill="#0f1b2e" stroke="#2c4363"/>
+  <text x="92" y="662" fill="#f6c85f" font-family="monospace" font-size="15">REPORT SCHEMA 1.0</text>
+  <text x="410" y="662" fill="#afc0d6" font-family="monospace" font-size="15">baseline-aware · authorized use only</text>
+</svg>

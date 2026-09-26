@@ -64,7 +64,7 @@ def default_payload_file() -> Path:
     bundled = bundle_root / "resources" / "payloads.yml"
     if bundled.is_file():
         return bundled
-    return Path(__file__).resolve().parent.parent / "payloads-legacy-full.yml"
+    return Path(__file__).resolve().parent.parent / "resources" / "payloads.yml"
 
 
 def default_check_file() -> Path:
