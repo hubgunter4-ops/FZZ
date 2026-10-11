@@ -8,7 +8,7 @@ from typing import Callable
 
 from .fuzzer import FuzzConfig, FuzzResult, fuzz_target
 from .payloads import default_check_file, default_payload_file, load_payloads
-from .recon import ReconError, ReconProfile
+from .recon import ReconConfig, ReconError, ReconProfile, recon_target
 from .sast import scan_directory
 
 
@@ -93,7 +93,7 @@ class FZZApp:
         brand = tk.Label(sidebar, text="FZZ", bg=COLORS["sidebar"], fg=COLORS["accent"], font=("TkDefaultFont", 25, "bold"), anchor="w")
         brand.pack(fill="x", padx=20)
         tk.Label(sidebar, text="SECURITY TOOLKIT", bg=COLORS["sidebar"], fg=COLORS["muted"], font=("TkDefaultFont", 8, "bold"), anchor="w").pack(fill="x", padx=22, pady=(0, 28))
-        for label, command in (("⌂   Overview", self._focus_workspace), ("◎   Target recon", self._focus_workspace), ("⌁   HTTP fuzzing", self._focus_workspace), ("▣   JS / TS SAST", self._start_sast)):
+        for label, command in (("⌂   Overview", self._focus_workspace), ("◎   Target recon", self._start_recon), ("⌁   HTTP fuzzing", self._start_run), ("▣   JS / TS SAST", self._start_sast)):
             ttk.Button(sidebar, text=label, style="Nav.TButton", command=command).pack(fill="x", pady=2)
         spacer = ttk.Frame(sidebar, style="Sidebar.TFrame")
         spacer.pack(fill="both", expand=True)
@@ -287,15 +287,57 @@ class FZZApp:
         self._write("[SYSTEM] Iniciando reconocimiento previo.\n\n", "muted")
         threading.Thread(target=self._run_worker, daemon=True).start()
 
+    def _start_recon(self) -> None:
+        url = self.fields["url"].get().strip()
+        if not url:
+            messagebox.showerror("Target requerido", "Introduce una URL HTTP(S) antes de ejecutar.")
+            self.fields["url"].focus_set()
+            return
+        try:
+            timeout = float(self.fields["timeout"].get())
+        except ValueError as exc:
+            self._schedule_error("Reconocimiento bloqueado", exc)
+            return
+        self._clear_console()
+        self.header_badge.configure(text="●  RECON RUNNING", bg="#4A3B19", fg=COLORS["warning"])
+        self._set_status("Reconociendo target con una solicitud GET…", tone="warning")
+        threading.Thread(target=self._recon_worker, args=(url, timeout), daemon=True).start()
+
+    def _recon_worker(self, url: str, timeout: float) -> None:
+        try:
+            profile = recon_target(ReconConfig(url, timeout))
+            self.root.after(0, self._update_recon, profile)
+            self.root.after(0, lambda: self._set_status("Reconocimiento completado"))
+        except (ValueError, OSError) as exc:
+            self._schedule_error("Reconocimiento bloqueado", exc)
+
     def _run_worker(self) -> None:
         try:
             payloads = load_payloads(self.fields["payloads"].get())
             parameter = "auto" if self.auto_params.get() else self.fields["param"].get()
             config = FuzzConfig(self.fields["url"].get(), parameter, self.method.get(), self.body.get(), float(self.fields["timeout"].get()), float(self.fields["pause"].get()))
-            fuzz_target(config, payloads, on_recon=lambda profile: self.root.after(0, self._update_recon, profile), on_result=lambda result: self.root.after(0, self._update_result, result))
-            self.root.after(0, lambda: (self.header_badge.configure(text="●  COMPLETE", bg="#193C2B", fg=COLORS["success"]), self._set_status("Ejecución completada · revisa los indicadores")))
+            results = fuzz_target(config, payloads, on_recon=lambda profile: self.root.after(0, self._update_recon, profile), on_result=lambda result: self.root.after(0, self._update_result, result))
+            self.root.after(0, self._finish_run, results)
         except (ValueError, OSError, ReconError) as exc:
-            self.root.after(0, lambda: (self.header_badge.configure(text="●  BLOCKED", bg="#4A2024", fg=COLORS["danger"]), self._set_status("Ejecución bloqueada: valida el target y la configuración", tone="danger"), self._write(f"[BLOCKED] {exc}\n", "error"), messagebox.showerror("Ejecución bloqueada", str(exc))))
+            self._schedule_error("Ejecución bloqueada", exc)
+
+    def _finish_run(self, results: list[FuzzResult]) -> None:
+        failed = sum(result.error is not None for result in results)
+        if failed:
+            self.header_badge.configure(text="●  PARTIAL", bg="#4A2024", fg=COLORS["danger"])
+            self._set_status(f"Ejecución incompleta · {failed} solicitud(es) fallida(s)", tone="danger")
+            return
+        self.header_badge.configure(text="●  COMPLETE", bg="#193C2B", fg=COLORS["success"])
+        self._set_status("Ejecución completada · revisa los indicadores")
+
+    def _schedule_error(self, title: str, error: Exception) -> None:
+        self.root.after(0, self._show_error, title, str(error))
+
+    def _show_error(self, title: str, detail: str) -> None:
+        self.header_badge.configure(text="●  BLOCKED", bg="#4A2024", fg=COLORS["danger"])
+        self._set_status(f"{title}: valida el target y la configuración", tone="danger")
+        self._write(f"[BLOCKED] {detail}\n", "error")
+        messagebox.showerror(title, detail)
 
 
 def launch() -> None:

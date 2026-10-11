@@ -76,6 +76,8 @@ def _run_http_command(args: argparse.Namespace, parser: argparse.ArgumentParser)
             if result.error:
                 print(f"      [!] {result.error}")
         print(f"Resumen: {report['summary']['findings']} indicador(es); confianza alta={report['summary']['confidence']['alta']}, media={report['summary']['confidence']['media']}, baja={report['summary']['confidence']['baja']}")
+    if any(result.error for result in results):
+        return 3
     return 1 if report["summary"]["findings"] else 0
 
 

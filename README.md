@@ -41,14 +41,24 @@ Para ejecutar desde el código fuente se necesita:
 - Acceso de red al target autorizado cuando se use `recon` o `fuzz`.
 - Tkinter únicamente para la interfaz gráfica.
 
-En Ubuntu o Debian, instala Tkinter con:
+En Ubuntu o Debian, instala Git y el soporte `venv` del Python del sistema:
 
 ```bash
 sudo apt-get update
+sudo apt-get install -y git python3-venv
+```
+
+Comprueba que `python3 --version` sea 3.11 o posterior antes de instalar. Algunas versiones de Ubuntu LTS incluyen un Python predeterminado anterior a ese mínimo; en ese caso, instala una versión compatible de Python y su paquete `venv` correspondiente, y usa ese intérprete como `PYTHON_BIN` al ejecutar `scripts/install.sh`. El entorno virtual incluye `pip`, por lo que no hace falta instalar `pip` globalmente.
+
+Tkinter solo es necesario para usar la interfaz gráfica. Instálalo con:
+
+```bash
 sudo apt-get install -y python3-tk
 ```
 
-Para construir ejecutables Linux con PyInstaller también se necesita `binutils`, que normalmente puede instalarse con:
+Si usas un intérprete de Python distinto al predeterminado del sistema, instala el paquete Tkinter que corresponda a esa versión.
+
+Para construir ejecutables Linux con PyInstaller también se necesita `binutils`:
 
 ```bash
 sudo apt-get install -y binutils
@@ -303,7 +313,7 @@ Inicia el panel con:
 
 La interfaz usa un diseño de control para herramientas técnicas. Incluye navegación lateral, tarjetas de estado, formulario de configuración y consola de resultados. El estado del flujo se muestra mediante `READY`, `RUNNING`, `RECON VALIDATED`, `COMPLETE` y `BLOCKED`.
 
-El panel permite configurar URL, parámetro, detección automática, archivo YAML, método, formato POST, timeout y pausa. La opción **Detectar parámetros automáticamente desde recon** activa el mismo comportamiento de `--auto-params`.
+El panel permite configurar URL, parámetro, detección automática, archivo YAML, método, formato POST, timeout y pausa. **Target recon** ejecuta únicamente el reconocimiento HTTP; **HTTP fuzzing** ejecuta el flujo de fuzzing con reconocimiento previo. La opción **Detectar parámetros automáticamente desde recon** activa el mismo comportamiento de `--auto-params`.
 
 Atajos disponibles:
 
@@ -366,7 +376,7 @@ Los resultados incluyen regla, severidad (`low`, `medium`, `high`, `critical`), 
 | `0` | Ejecución correcta sin indicadores o reconocimiento correcto. |
 | `1` | Se detectaron indicadores de seguridad o hallazgos SAST. |
 | `2` | Error de configuración, validación o target. |
-| `3` | Error del sistema operativo o de ejecución. |
+| `3` | Error del sistema operativo o de ejecución; en `fuzz` y `check`, al menos una solicitud falló. |
 
 ## Ejecutable independiente con PyInstaller
 
