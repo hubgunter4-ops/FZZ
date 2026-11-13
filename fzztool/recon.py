@@ -6,7 +6,7 @@ from html import unescape
 import re
 import time
 from typing import Any
-from urllib.parse import parse_qsl, urlparse, urlunparse
+from urllib.parse import parse_qsl, urljoin, urlparse, urlunparse
 
 import requests
 
@@ -31,6 +31,9 @@ class ReconConfig:
     url: str
     timeout: float = 10.0
     max_response_bytes: int = MAX_RESPONSE_BYTES
+    # Optional extra headers (e.g. explicit operator auth). Never included
+    # in the profile/report; only sent to the validated target origin.
+    headers: dict[str, str] | None = None
 
     def validate(self) -> str:
         parsed = urlparse(self.url.strip())
@@ -103,18 +106,47 @@ def _baseline_signatures(body: str) -> list[str]:
     return list(dict.fromkeys(signatures))
 
 
+def _same_origin(url: str, base_url: str) -> bool:
+    left, right = urlparse(url), urlparse(base_url)
+    return (left.scheme.lower(), (left.hostname or "").lower(), left.port) == (
+        right.scheme.lower(),
+        (right.hostname or "").lower(),
+        right.port,
+    )
+
+
 def recon_target(config: ReconConfig, *, session: requests.Session | None = None) -> ReconProfile:
     """Validate and make one bounded GET request; no crawling or form submission occurs."""
     normalized_url = config.validate()
     client = session or requests.Session()
+    headers = {"User-Agent": "FZZ-recon/1.0 (authorized security testing)", **(config.headers or {})}
     started = time.monotonic()
     try:
-        response = client.get(
-            normalized_url,
-            timeout=config.timeout,
-            allow_redirects=True,
-            headers={"User-Agent": "FZZ-recon/1.0 (authorized security testing)"},
-        )
+        if config.headers:
+            # With auth, follow redirects manually and only in-origin:
+            # requests keeps a Cookie header across redirects even when
+            # the host changes, so auth must never ride a redirect out.
+            response = None
+            current = normalized_url
+            for _ in range(6):
+                response = client.get(current, timeout=config.timeout, allow_redirects=False, headers=headers)
+                if response.status_code not in {301, 302, 303, 307, 308}:
+                    break
+                location = response.headers.get("Location")
+                if not location:
+                    break
+                nxt = urljoin(current, location)
+                if not _same_origin(nxt, normalized_url):
+                    break
+                current = nxt
+            assert response is not None
+        else:
+            response = client.get(
+                normalized_url,
+                timeout=config.timeout,
+                allow_redirects=True,
+                headers=headers,
+            )
     except requests.RequestException as exc:
         raise ReconError(f"No se pudo contactar el target: {exc}") from exc
     elapsed = time.monotonic() - started

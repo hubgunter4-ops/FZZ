@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace as _replace_profile
 
+from .crawler import CrawlConfig, build_auth_headers, crawl_target
 from .fuzzer import FuzzConfig, fuzz_target
 from .payloads import default_check_file, default_payload_file, load_payloads
 from .recon import ReconConfig, recon_target
@@ -27,6 +29,46 @@ def _add_check_options(command: argparse.ArgumentParser, *, payload_default: str
     command.add_argument("--json-output", action="store_true")
     command.add_argument("--report", help="Guardar reporte detallado en JSON o Markdown")
     command.add_argument("--report-format", choices=["auto", "json", "markdown"], default="auto")
+    _add_auth_options(command)
+    _add_crawl_options(command)
+
+
+def _add_auth_options(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--auth-header", help="Cabecera de auth explícita, formato 'Nombre: valor' (nunca se registra el valor)")
+    command.add_argument("--auth-cookie", help="Cookie de auth explícita, formato 'nombre=valor' (nunca se registra el valor)")
+
+
+def _add_crawl_options(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--crawl", action="store_true", help="Rastrear enlaces del mismo origen (opt-in; profundidad máx. 2, máx. 30 URLs)")
+    command.add_argument("--max-depth", type=int, default=2, help="Profundidad máx. de crawling (0-2)")
+    command.add_argument("--max-urls", type=int, default=30, help="Máx. de URLs a visitar (1-30)")
+
+
+def _auth_headers(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[str, str]:
+    try:
+        return build_auth_headers(args.auth_header, args.auth_cookie)
+    except ValueError as exc:
+        parser.error(str(exc))
+        return {}
+
+
+def _run_crawl(args: argparse.Namespace, parser: argparse.ArgumentParser):
+    """Run the opt-in crawler, or return None when --crawl was not passed."""
+    if not getattr(args, "crawl", False):
+        return None
+    try:
+        config = CrawlConfig(
+            args.url,
+            max_depth=args.max_depth,
+            max_urls=args.max_urls,
+            timeout=min(args.timeout, 30.0),
+            auth_header=args.auth_header,
+            auth_cookie=args.auth_cookie,
+        )
+        return crawl_target(config)
+    except ValueError as exc:
+        parser.error(str(exc))
+        return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
     recon.add_argument("--url", required=True)
     recon.add_argument("--timeout", type=float, default=10.0)
     recon.add_argument("--json-output", action="store_true")
+    _add_auth_options(recon)
+    _add_crawl_options(recon)
     sast = sub.add_parser("sast", help="Escanear archivos JavaScript, TypeScript y TSX con reglas regex")
     sast.add_argument("directory")
     sast.add_argument("--json-output", action="store_true")
@@ -55,19 +99,33 @@ def _run_http_command(args: argparse.Namespace, parser: argparse.ArgumentParser)
     parameter = "auto" if args.auto_params else args.parameter
     if not parameter:
         parser.error("el comando requiere --param NOMBRE o --auto-params")
-    config = FuzzConfig(args.url, parameter, args.method, args.body, args.timeout, args.pause, max_requests=args.max_requests)
-    profile = recon_target(ReconConfig(config.url, min(config.timeout, 30.0)))
+    headers = _auth_headers(args, parser)
+    config = FuzzConfig(args.url, parameter, args.method, args.body, args.timeout, args.pause, max_requests=args.max_requests, headers=headers or None)
+    profile = recon_target(ReconConfig(config.url, min(config.timeout, 30.0), headers=headers or None))
+    crawl = _run_crawl(args, parser)
+    if crawl is not None and args.auto_params:
+        merged = list(profile.parameters)
+        for name in crawl.parameters:
+            if name not in merged:
+                merged.append(name)
+            if len(merged) >= 32:
+                break
+        profile = _replace_profile(profile, parameters=merged)
     results = fuzz_target(config, payloads, perform_recon=False, recon_profile=profile)
-    report = build_report(profile, results, mode=args.command)
+    report = build_report(profile, results, mode=args.command, crawl=crawl.to_dict() if crawl else None)
     if args.report:
         destination = write_report(report, args.report, format=args.report_format)
         print(f"Reporte guardado: {destination}", file=sys.stderr)
     data = report if args.report else {"recon": profile.to_dict(), "results": [result.to_dict() for result in results]}
+    if crawl is not None and not args.report:
+        data["crawl"] = crawl.to_dict()
     if args.json_output:
         print(json.dumps(data, ensure_ascii=False, indent=2))
     else:
         print(f"Reconocimiento: {profile.status_code} | {profile.final_url} | {profile.title or 'sin título'}")
         print(f"Parámetros candidatos: {', '.join(profile.parameters) if profile.parameters else 'ninguno'}")
+        if crawl is not None:
+            print(f"Crawling: {len(crawl.urls)} URL(s) visitadas, {crawl.skipped_off_scope} fuera de alcance, auth={'sí' if crawl.auth_used else 'no'}")
         for result in results:
             status = result.status_code if result.status_code is not None else "ERROR"
             print(f"{status:>5} {result.elapsed:>6.2f}s [{result.parameter}] {result.category}/{result.technique}: {result.payload}")
@@ -91,9 +149,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command in {"fuzz", "check"}:
             return _run_http_command(args, parser)
         if args.command == "recon":
-            profile = recon_target(ReconConfig(args.url, args.timeout))
+            headers = _auth_headers(args, parser)
+            profile = recon_target(ReconConfig(args.url, args.timeout, headers=headers or None))
+            crawl = _run_crawl(args, parser)
             if args.json_output:
-                print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+                data = profile.to_dict()
+                if crawl is not None:
+                    data["crawl"] = crawl.to_dict()
+                print(json.dumps(data, ensure_ascii=False, indent=2))
             else:
                 print(f"Target válido y accesible: {profile.final_url}")
                 print(f"Estado: {profile.status_code} | Tiempo: {profile.elapsed:.2f}s")
@@ -101,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Server: {profile.server or 'n/d'} | X-Powered-By: {profile.powered_by or 'n/d'}")
                 print(f"Parámetros candidatos: {', '.join(profile.parameters) if profile.parameters else 'ninguno'}")
                 print(f"Firmas baseline: {', '.join(profile.baseline_signatures) if profile.baseline_signatures else 'ninguna'}")
+                if crawl is not None:
+                    print(f"Crawling: {len(crawl.urls)} URL(s) visitadas, {crawl.skipped_off_scope} fuera de alcance, auth={'sí' if crawl.auth_used else 'no'}")
+                    for url in crawl.urls:
+                        print(f"  {url}")
             return 0
         findings = [finding.to_dict() for finding in scan_directory(args.directory)]
         if args.json_output:

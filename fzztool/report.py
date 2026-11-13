@@ -10,11 +10,17 @@ from .fuzzer import FuzzResult
 from .recon import ReconProfile
 
 
-def build_report(profile: ReconProfile, results: Iterable[FuzzResult], *, mode: str = "fuzz") -> dict:
+def build_report(
+    profile: ReconProfile,
+    results: Iterable[FuzzResult],
+    *,
+    mode: str = "fuzz",
+    crawl: dict | None = None,
+) -> dict:
     result_list = list(results)
     findings = [finding for result in result_list for finding in result.findings]
     confidence = {level: sum(item.get("confidence") == level for item in findings) for level in ("alta", "media", "baja")}
-    return {
+    report = {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": mode,
@@ -39,6 +45,10 @@ def build_report(profile: ReconProfile, results: Iterable[FuzzResult], *, mode: 
         ],
         "results": [result.to_dict() for result in result_list],
     }
+    if crawl is not None:
+        # crawl is a CrawlResult.to_dict(): URLs and counts only, never tokens.
+        report["crawl"] = crawl
+    return report
 
 
 def report_markdown(report: dict) -> str:
@@ -58,8 +68,27 @@ def report_markdown(report: dict) -> str:
         f"- **Hallazgos:** `{summary['findings']}`",
         f"- **Confianza:** alta `{summary['confidence']['alta']}`, media `{summary['confidence']['media']}`, baja `{summary['confidence']['baja']}`",
         "",
+    ]
+    crawl = report.get("crawl")
+    if crawl:
+        lines.extend(
+            [
+                "## Crawling (opt-in, mismo origen)",
+                "",
+                f"- URLs visitadas: `{crawl['visited']}` (máx. profundidad `{crawl['max_depth']}`, tope `{crawl['max_urls']}`)",
+                f"- Enlaces fuera de alcance ignorados: `{crawl['skipped_off_scope']}`",
+                f"- Autenticación usada: `{'sí' if crawl['auth_used'] else 'no'}`",
+                "",
+            ]
+        )
+    lines.extend(
+        [
         "## Reconocimiento",
         "",
+        ]
+    )
+    lines.extend(
+        [
         f"- Título: {recon.get('title') or 'n/d'}",
         f"- Content-Type: {recon.get('content_type') or 'n/d'}",
         f"- Parámetros candidatos: {', '.join(recon.get('parameters') or []) or 'ninguno'}",
@@ -68,6 +97,7 @@ def report_markdown(report: dict) -> str:
         "## Indicadores",
         "",
     ]
+    )
     if not report["findings"]:
         lines.append("No se detectaron indicadores con las comprobaciones ejecutadas.")
     else:

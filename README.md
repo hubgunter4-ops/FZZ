@@ -213,6 +213,28 @@ El perfil obtenido contiene:
 
 El recon no sigue enlaces, no realiza crawling, no envía formularios y no ejecuta payloads. El cuerpo analizado está limitado a 512 KB.
 
+## Crawling y autenticación (opt-in)
+
+Por defecto FZZ no rastrea ni autentica. Ambas cosas son explícitas y opcionales:
+
+```bash
+# Recon con crawling del mismo origen y auth por cabecera
+./fzz recon --url http://localhost:3000/ --crawl \
+  --auth-header "Authorization: Bearer <token>"
+
+# Fuzz con crawling y auth por cookie; los parámetros de las páginas
+# rastreadas se suman a los de --auto-params
+./fzz check --url http://localhost:3000/search --auto-params --crawl \
+  --auth-cookie "session=<valor>"
+```
+
+Límites duros, no ampliables por flags:
+
+- Solo se visita el mismo origen (esquema + host + puerto del target); los enlaces externos se cuentan como fuera de alcance y no se siguen.
+- Profundidad máxima 2 (`--max-depth`, 0-2) y máximo 30 URLs (`--max-urls`, 1-30).
+- La autenticación solo se envía al origen del target: las redirecciones se siguen a mano y solo mientras permanecen en el mismo origen, así que una redirección a otro host nunca recibe la cabecera ni la cookie. En fuzzing con auth, además, no se siguen redirecciones.
+- El valor del token o de la cookie nunca se incluye en la salida, el reporte ni los logs: el reporte solo registra si se usó autenticación (`auth_used: true/false`).
+
 ## Parámetros automáticos
 
 El modo automático se activa explícitamente con `--auto-params`:

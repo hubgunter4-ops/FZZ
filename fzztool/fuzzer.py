@@ -27,6 +27,10 @@ class FuzzConfig:
     pause: float = 0.5
     timing_threshold: float | None = None
     max_requests: int = MAX_REQUESTS
+    # Optional extra headers (explicit operator auth). Never logged or
+    # included in results/reports. When set, redirects are not followed,
+    # so auth never rides a redirect to another host.
+    headers: dict[str, str] | None = None
 
     def validate(self) -> None:
         if not self.url.startswith(("http://", "https://")):
@@ -102,12 +106,19 @@ def fuzz_target(
             started = time.monotonic()
             try:
                 data = {parameter: payload.value}
+                headers = config.headers
                 if config.method.upper() == "GET":
-                    response = client.get(config.url, params=data, timeout=config.timeout)
+                    response = client.get(
+                        config.url,
+                        params=data,
+                        timeout=config.timeout,
+                        headers=headers,
+                        allow_redirects=not headers,
+                    )
                 elif config.body_type == "json":
-                    response = client.post(config.url, json=data, timeout=config.timeout)
+                    response = client.post(config.url, json=data, timeout=config.timeout, headers=headers)
                 else:
-                    response = client.post(config.url, data=data, timeout=config.timeout)
+                    response = client.post(config.url, data=data, timeout=config.timeout, headers=headers)
                 elapsed = time.monotonic() - started
                 findings = detect_indicators(
                     payload,
